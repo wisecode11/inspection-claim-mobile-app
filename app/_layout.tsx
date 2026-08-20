@@ -39,6 +39,10 @@ function AppShell() {
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="jobs" options={{ headerShown: false }} />
         <Stack.Screen name="property" options={{ title: 'Property Details' }} />
+        <Stack.Screen name="setup" options={{ title: 'Inspection Setup' }} />
+        <Stack.Screen name="capture/[step]" options={{ headerShown: false, title: 'Field Capture' }} />
+        <Stack.Screen name="review" options={{ title: 'Review & Quality Check' }} />
+        <Stack.Screen name="report" options={{ title: 'Evidence Package' }} />
         <Stack.Screen name="inspection" options={{ title: 'Inspection Overview' }} />
         <Stack.Screen name="roof-inspection" options={{ title: 'Roof Inspection' }} />
         <Stack.Screen name="photos" options={{ title: 'Inspection Photos' }} />
@@ -46,9 +50,7 @@ function AppShell() {
         <Stack.Screen name="damage" options={{ title: 'Damage Assessment' }} />
         <Stack.Screen name="checklist" options={{ title: 'Collateral Checklist' }} />
         <Stack.Screen name="weather" options={{ title: 'Weather Verification' }} />
-        <Stack.Screen name="review" options={{ title: 'Inspection Review' }} />
         <Stack.Screen name="summary" options={{ title: 'Inspection Summary' }} />
-        <Stack.Screen name="report" options={{ title: 'Inspection Report' }} />
       </Stack>
       <StatusBar style="dark" />
     </>

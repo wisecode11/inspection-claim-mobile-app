@@ -1,89 +1,228 @@
-import { createContext, PropsWithChildren, useContext, useState } from 'react';
+import { createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
-type InspectionData = {
-  jobId: string;
-  customer: string;
-  address: string;
-  date: string;
-  jobStatus: string;
-  latitude: number | null;
-  longitude: number | null;
-  locationConfirmed: boolean;
-  geocodeError: string;
-  roofSlope: string;
-  roofType: string;
-  roofCondition: string;
-  roofNotes: string;
-  photos: string[];
-  hailArea: string;
-  hailSize: string;
-  hailImpacts: string;
-  hailNotes: string;
-  damageType: string;
-  damageLocation: string;
-  damageSeverity: string;
-  damageNotes: string;
-  collateralDamage: string[];
-  weatherStatus: string;
-};
+import {
+  createPhotoId,
+  PhotoItem,
+  StepId,
+} from '@/lib/capture-steps';
+import { clearDraft, loadDraft, saveDraft } from '@/lib/draft-storage';
+import {
+  createInitialInspection,
+  emptyBuildNotes,
+  InspectionData,
+  JobSeed,
+} from '@/lib/inspection-types';
 
-const initialData: InspectionData = {
-  jobId: '',
-  customer: 'Michael Anderson',
-  address: '1842 Oak Ridge Drive, Austin, TX',
-  date: 'August 17, 2026',
-  jobStatus: 'Scheduled',
-  latitude: 30.2672,
-  longitude: -97.7431,
-  locationConfirmed: false,
-  geocodeError: '',
-  roofSlope: 'Front',
-  roofType: 'Asphalt Shingle',
-  roofCondition: 'Damaged',
-  roofNotes: '',
-  photos: [],
-  hailArea: '100',
-  hailSize: '1 inch',
-  hailImpacts: '12',
-  hailNotes: '',
-  damageType: 'Hail',
-  damageLocation: 'Front Slope',
-  damageSeverity: 'Moderate',
-  damageNotes: '',
-  collateralDamage: [],
-  weatherStatus: 'Storm Detected',
-};
+export type { InspectionData, JobSeed } from '@/lib/inspection-types';
 
 type InspectionContextValue = {
   data: InspectionData;
   update: (changes: Partial<InspectionData>) => void;
-  resetForJob: (
-    job: Pick<
-      InspectionData,
-      'jobId' | 'customer' | 'address' | 'date' | 'jobStatus' | 'latitude' | 'longitude' | 'locationConfirmed' | 'geocodeError'
-    >
-  ) => void;
+  resetForJob: (job: JobSeed) => void;
+  addPhotos: (uris: string[], meta: Omit<PhotoItem, 'id' | 'uri' | 'createdAt' | 'damageTags'> & { damageTags?: string[] }) => void;
+  updatePhoto: (id: string, changes: Partial<PhotoItem>) => void;
+  removePhoto: (id: string) => void;
+  reorderPhoto: (id: string, direction: 'up' | 'down') => void;
+  movePhotoToStep: (id: string, stepId: StepId, label?: string) => void;
+  markStepComplete: (stepId: StepId) => void;
+  setCoverPhoto: (id: string) => void;
+  clearInspectionDraft: () => Promise<void>;
 };
 
 const InspectionContext = createContext<InspectionContextValue | null>(null);
 
 export function InspectionProvider({ children }: PropsWithChildren) {
-  const [data, setData] = useState(initialData);
+  const [data, setData] = useState<InspectionData>(createInitialInspection());
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dataRef = useRef(data);
+  dataRef.current = data;
 
-  const update = (changes: Partial<InspectionData>) => {
+  useEffect(() => {
+    if (!data.jobId) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void saveDraft(data.jobId, data);
+    }, 400);
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [data]);
+
+  const update = useCallback((changes: Partial<InspectionData>) => {
     setData((current) => ({ ...current, ...changes }));
-  };
+  }, []);
 
-  const resetForJob = (
-    job: Pick<
-      InspectionData,
-      'jobId' | 'customer' | 'address' | 'date' | 'jobStatus' | 'latitude' | 'longitude' | 'locationConfirmed' | 'geocodeError'
+  const resetForJob = useCallback((job: JobSeed) => {
+    const base = createInitialInspection({
+      ...job,
+      homeownerName: job.customer,
+      claimNumber: job.claimNumber || '',
+      phone: job.phone || '',
+      email: job.email || '',
+      photos: [],
+      completedSteps: [],
+      currentStepId: 'elevations',
+      buildNotes: emptyBuildNotes(),
+    });
+
+    setData(base);
+
+    void loadDraft(job.jobId).then((draft) => {
+      if (!draft || draft.jobId !== job.jobId) return;
+      setData({
+        ...draft,
+        ...job,
+        homeownerName: draft.homeownerName || job.customer,
+        photos: Array.isArray(draft.photos) ? draft.photos : [],
+        completedSteps: Array.isArray(draft.completedSteps) ? draft.completedSteps : [],
+        buildNotes: draft.buildNotes ?? emptyBuildNotes(),
+      });
+    });
+  }, []);
+
+  const addPhotos = useCallback(
+    (
+      uris: string[],
+      meta: Omit<PhotoItem, 'id' | 'uri' | 'createdAt' | 'damageTags'> & { damageTags?: string[] }
+    ) => {
+      setData((current) => {
+        const isFirstFront =
+          meta.stepId === 'elevations' &&
+          meta.label === 'Front' &&
+          !current.photos.some((photo) => photo.isCover);
+
+        const nextPhotos = [
+          ...current.photos,
+          ...uris.map((uri, index) => ({
+            id: createPhotoId(),
+            uri,
+            stepId: meta.stepId,
+            label: meta.label,
+            component: meta.component,
+            elevation: meta.elevation,
+            roofDirection: meta.roofDirection,
+            damageTags: meta.damageTags ?? [],
+            notes: meta.notes,
+            shotType: meta.shotType ?? 'standard',
+            isCover: Boolean(meta.isCover) || (isFirstFront && index === 0),
+            createdAt: new Date().toISOString(),
+          })),
+        ];
+
+        return {
+          ...current,
+          photos: nextPhotos,
+          lastRoofDirection: meta.roofDirection || current.lastRoofDirection,
+        };
+      });
+    },
+    []
+  );
+
+  const updatePhoto = useCallback((id: string, changes: Partial<PhotoItem>) => {
+    setData((current) => ({
+      ...current,
+      photos: current.photos.map((photo) => (photo.id === id ? { ...photo, ...changes } : photo)),
+      lastRoofDirection: changes.roofDirection || current.lastRoofDirection,
+    }));
+  }, []);
+
+  const removePhoto = useCallback((id: string) => {
+    setData((current) => ({
+      ...current,
+      photos: current.photos.filter((photo) => photo.id !== id),
+    }));
+  }, []);
+
+  const reorderPhoto = useCallback((id: string, direction: 'up' | 'down') => {
+    setData((current) => {
+      const index = current.photos.findIndex((photo) => photo.id === id);
+      if (index < 0) return current;
+      const target = direction === 'up' ? index - 1 : index + 1;
+      if (target < 0 || target >= current.photos.length) return current;
+
+      // Only swap within the same step so order stays meaningful in the grid.
+      if (current.photos[index].stepId !== current.photos[target].stepId) {
+        const stepPhotos = current.photos
+          .map((photo, photoIndex) => ({ photo, photoIndex }))
+          .filter((entry) => entry.photo.stepId === current.photos[index].stepId);
+        const localIndex = stepPhotos.findIndex((entry) => entry.photo.id === id);
+        const localTarget = direction === 'up' ? localIndex - 1 : localIndex + 1;
+        if (localTarget < 0 || localTarget >= stepPhotos.length) return current;
+        const from = stepPhotos[localIndex].photoIndex;
+        const to = stepPhotos[localTarget].photoIndex;
+        const next = [...current.photos];
+        const tmp = next[from];
+        next[from] = next[to];
+        next[to] = tmp;
+        return { ...current, photos: next };
+      }
+
+      const next = [...current.photos];
+      const tmp = next[index];
+      next[index] = next[target];
+      next[target] = tmp;
+      return { ...current, photos: next };
+    });
+  }, []);
+
+  const movePhotoToStep = useCallback((id: string, stepId: StepId, label?: string) => {
+    setData((current) => ({
+      ...current,
+      photos: current.photos.map((photo) =>
+        photo.id === id
+          ? {
+              ...photo,
+              stepId,
+              label: label || photo.label,
+              isCover: stepId === 'elevations' ? photo.isCover : false,
+            }
+          : photo
+      ),
+    }));
+  }, []);
+
+  const markStepComplete = useCallback((stepId: StepId) => {
+    setData((current) => ({
+      ...current,
+      completedSteps: current.completedSteps.includes(stepId)
+        ? current.completedSteps
+        : [...current.completedSteps, stepId],
+      currentStepId: stepId,
+    }));
+  }, []);
+
+  const setCoverPhoto = useCallback((id: string) => {
+    setData((current) => ({
+      ...current,
+      photos: current.photos.map((photo) => ({ ...photo, isCover: photo.id === id })),
+    }));
+  }, []);
+
+  const clearInspectionDraft = useCallback(async () => {
+    const jobId = dataRef.current.jobId;
+    await clearDraft(jobId);
+  }, []);
+
+  return (
+    <InspectionContext.Provider
+      value={{
+        data,
+        update,
+        resetForJob,
+        addPhotos,
+        updatePhoto,
+        removePhoto,
+        reorderPhoto,
+        movePhotoToStep,
+        markStepComplete,
+        setCoverPhoto,
+        clearInspectionDraft,
+      }}
     >
-  ) => {
-    setData({ ...initialData, ...job, photos: [], collateralDamage: [] });
-  };
-
-  return <InspectionContext.Provider value={{ data, update, resetForJob }}>{children}</InspectionContext.Provider>;
+      {children}
+    </InspectionContext.Provider>
+  );
 }
 
 export function useInspection() {

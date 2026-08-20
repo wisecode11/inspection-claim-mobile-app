@@ -1,26 +1,108 @@
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { InfoRow, PrimaryButton, ui } from '@/components/inspection-ui';
 import { useInspection } from '@/context/inspection-context';
+import { CAPTURE_STEPS } from '@/lib/capture-steps';
+import { findInspectionGaps, photosForStep } from '@/lib/review-gaps';
+import { captureHref } from '@/lib/routes';
 
 export default function ReviewScreen() {
   const router = useRouter();
   const { data } = useInspection();
-  const hailResult = `${data.hailImpacts} impacts / ${data.hailArea} sq ft`;
-  const submit = () => Alert.alert('Inspection submitted successfully.', 'Your inspection is ready for final summary.', [{ text: 'Continue', onPress: () => router.push('/summary') }]);
-  return <SafeAreaView style={ui.screen}><ScrollView contentContainerStyle={ui.content}>
-    <Text style={ui.title}>Inspection review</Text><Text style={ui.subtitle}>Confirm the inspection record before submitting.</Text>
-    <View style={[ui.card, { marginTop: 24 }]}>
-      <InfoRow label="Customer" value={data.customer} /><InfoRow label="Property" value={data.address} /><InfoRow label="Photos" value={String(data.photos.length)} />
-      <InfoRow label="Hail Test" value={hailResult} /><InfoRow label="Damage" value={`${data.damageType} • ${data.damageSeverity}`} />
-      <InfoRow label="Collateral" value={`${data.collateralDamage.length} items damaged`} /><InfoRow label="Weather" value="Storm Verified" last />
-    </View>
-    <Pressable style={styles.edit} onPress={() => router.push('/roof-inspection')}><Text style={styles.editText}>Edit Inspection</Text></Pressable>
-    <View style={{ marginTop: 12 }}><PrimaryButton title="Submit Inspection" onPress={submit} /></View>
-  </ScrollView></SafeAreaView>;
+  const gaps = findInspectionGaps(data);
+
+  return (
+    <SafeAreaView style={ui.screen}>
+      <ScrollView contentContainerStyle={ui.content}>
+        <Text style={ui.title}>Review & quality check</Text>
+        <Text style={ui.subtitle}>
+          Inspection progress {data.completedSteps.length}/{CAPTURE_STEPS.length}. Warnings do not
+          block finalizing.
+        </Text>
+
+        <View style={[ui.card, { marginTop: 20 }]}>
+          <InfoRow label="Homeowner" value={data.homeownerName || data.customer} />
+          <InfoRow label="Property" value={data.address} />
+          <InfoRow label="Roof age" value={data.estimatedRoofAge || '—'} />
+          <InfoRow label="Total photos" value={String(data.photos.length)} />
+          <InfoRow
+            label="Weather"
+            value={data.weatherSummary?.badgeTitle || data.weatherStatus || 'No data'}
+            last
+          />
+        </View>
+
+        <Text style={styles.section}>Category photo counts</Text>
+        <View style={ui.card}>
+          {CAPTURE_STEPS.map((step, index) => {
+            const count = photosForStep(data.photos, step.id).length;
+            const done = data.completedSteps.includes(step.id) || count > 0;
+            return (
+              <Pressable
+                key={step.id}
+                style={[styles.row, index === CAPTURE_STEPS.length - 1 && styles.rowLast]}
+                onPress={() => router.push(captureHref(step.id))}
+              >
+                <Text style={styles.rowTitle}>
+                  {done ? '✓ ' : ''}
+                  {step.number}. {step.title}
+                </Text>
+                <Text style={styles.rowMeta}>{count} photos</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {gaps.length > 0 ? (
+          <>
+            <Text style={styles.section}>Documentation gaps</Text>
+            <View style={[ui.card, styles.warnCard]}>
+              {gaps.map((gap) => (
+                <Pressable
+                  key={`${gap.stepId}-${gap.message}`}
+                  style={styles.gapRow}
+                  onPress={() => router.push(captureHref(gap.stepId))}
+                >
+                  <Text style={styles.gapTitle}>{gap.title}</Text>
+                  <Text style={styles.gapText}>{gap.message}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : (
+          <Text style={styles.ok}>No major documentation gaps detected.</Text>
+        )}
+
+        <View style={{ marginTop: 24 }}>
+          <PrimaryButton title="Generate Evidence Package" onPress={() => router.push('/report')} />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
+
 const styles = StyleSheet.create({
-  edit: { alignItems: 'center', borderColor: '#163A4A', borderRadius: 12, borderWidth: 1, marginTop: 28, padding: 15 },
-  editText: { color: '#163A4A', fontWeight: '800' },
+  section: {
+    color: '#163A4A',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 10,
+    marginTop: 22,
+  },
+  row: {
+    borderBottomColor: '#EDF1F2',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  rowLast: { borderBottomWidth: 0 },
+  rowTitle: { color: '#163A4A', flex: 1, fontSize: 14, fontWeight: '700' },
+  rowMeta: { color: '#70818A', fontSize: 13, fontWeight: '700' },
+  warnCard: { backgroundColor: '#FFF8F2' },
+  gapRow: { paddingVertical: 10 },
+  gapTitle: { color: '#C45C28', fontSize: 14, fontWeight: '800' },
+  gapText: { color: '#7A5A45', fontSize: 13, marginTop: 2 },
+  ok: { color: '#1F7A45', fontSize: 14, fontWeight: '700', marginTop: 18 },
 });

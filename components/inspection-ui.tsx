@@ -9,9 +9,17 @@ export function SectionTitle({ children }: PropsWithChildren) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
 }
 
-export function PrimaryButton({ title, onPress }: { title: string; onPress: () => void }) {
+export function PrimaryButton({
+  title,
+  onPress,
+  disabled = false,
+}: {
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
   return (
-    <Pressable style={styles.button} onPress={onPress}>
+    <Pressable disabled={disabled} style={[styles.button, disabled && styles.buttonDisabled]} onPress={onPress}>
       <Text style={styles.buttonText}>{title}</Text>
     </Pressable>
   );
@@ -43,6 +51,7 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F4F7F8' },
   sectionTitle: { color: '#163A4A', fontSize: 16, fontWeight: '800', marginBottom: 10, marginTop: 24 },
   button: { alignItems: 'center', backgroundColor: '#E17035', borderRadius: 12, padding: 16 },
+  buttonDisabled: { opacity: 0.55 },
   buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   infoRow: { borderBottomColor: '#EDF1F2', borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14 },
   infoRowLast: { borderBottomWidth: 0 },

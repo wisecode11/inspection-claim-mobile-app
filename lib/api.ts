@@ -23,6 +23,17 @@ export type LoginResult = {
   token: string;
 };
 
+type AuthTokens = {
+  accessToken?: string;
+  refreshToken?: string;
+};
+
+type LoginApiData = {
+  user?: AuthUser;
+  token?: string;
+  tokens?: AuthTokens;
+};
+
 export type JobAddress = {
   line1?: string;
   line2?: string;
@@ -59,11 +70,36 @@ export type InspectionJob = {
   notes?: string;
   createdAt?: string;
   scheduledAt?: string | null;
+  dateOfLoss?: string | null;
+  claim?: {
+    dateOfLoss?: string | null;
+    claimNumber?: string;
+    status?: string;
+  };
   customer: JobCustomer | null;
   address?: JobAddress | null;
   geocode?: JobGeocode | null;
   latitude?: number | null;
   longitude?: number | null;
+};
+
+export type WeatherSummary = {
+  badgeTitle: string;
+  badgeSub: string;
+  stormDate: string;
+  weather: string;
+  hail: string;
+  wind: string;
+  rain: string;
+  stormMatch: string;
+};
+
+export type WeatherVerification = {
+  id: string;
+  jobId: string;
+  matchStatus: 'match' | 'mismatch' | 'inconclusive' | 'no_data';
+  dateOfLoss?: string;
+  summary: WeatherSummary;
 };
 
 type ApiErrorBody = {
@@ -126,7 +162,9 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
   const payload = (await response.json().catch(() => null)) as T | ApiErrorBody | null;
   if (!response.ok || !payload) {
     const message =
-      payload && 'message' in payload && payload.message ? payload.message : 'Request failed';
+      payload && typeof payload === 'object' && 'message' in payload && payload.message
+        ? String(payload.message)
+        : 'Request failed';
     throw new Error(message);
   }
 
@@ -134,16 +172,26 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
 }
 
 export async function loginWithApi(email: string, password: string): Promise<LoginResult> {
-  const payload = await requestJson<{ data?: LoginResult }>('/api/auth/login', {
+  const payload = await requestJson<{ data?: LoginApiData }>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    body: JSON.stringify({
+      email: email.trim().toLowerCase(),
+      password,
+      platform: Platform.OS,
+    }),
   });
 
-  if (!payload.data?.token) {
+  const user = payload.data?.user;
+  const token = payload.data?.tokens?.accessToken || payload.data?.token;
+  if (!user || !token) {
     throw new Error('Login failed');
   }
 
-  return payload.data;
+  if (user.role !== 'inspector') {
+    throw new Error('This app is for inspectors. Use the web dashboard for this account.');
+  }
+
+  return { user, token };
 }
 
 export async function fetchJobs(token: string): Promise<InspectionJob[]> {
@@ -170,6 +218,48 @@ export async function confirmJobLocation(
   }
 
   return payload.data.job;
+}
+
+export async function fetchWeatherVerification(
+  token: string,
+  jobId: string
+): Promise<WeatherVerification> {
+  const payload = await requestJson<{ data?: { weather?: WeatherVerification } }>(
+    `/api/weather/jobs/${jobId}`,
+    { token }
+  );
+
+  if (!payload.data?.weather?.summary) {
+    throw new Error('Weather verification is not available');
+  }
+
+  return payload.data.weather;
+}
+
+export async function verifyWeatherForJob(
+  token: string,
+  jobId: string,
+  force = false
+): Promise<WeatherVerification> {
+  const payload = await requestJson<{ data?: { weather?: WeatherVerification } }>(
+    '/api/weather/verify',
+    {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ jobId, force }),
+    }
+  );
+
+  if (!payload.data?.weather?.summary) {
+    throw new Error('Weather verification failed');
+  }
+
+  return payload.data.weather;
+}
+
+export function jobDateOfLoss(job: InspectionJob): string | null {
+  const value = job.dateOfLoss || job.claim?.dateOfLoss || null;
+  return value ? String(value) : null;
 }
 
 export function jobCoordinates(job: InspectionJob): { latitude: number; longitude: number } | null {

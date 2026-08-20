@@ -21,6 +21,7 @@ import {
   jobAddressText,
   jobCoordinates,
   jobCustomerName,
+  jobDateOfLoss,
   jobDateLabel,
   jobStatusLabel,
 } from '@/lib/api';
@@ -109,7 +110,7 @@ export default function JobsScreen() {
               <Text style={styles.logoMark}>⌂</Text>
             </View>
             <View>
-              <Text style={styles.brand}>RoofCheck</Text>
+              <Text style={styles.brand}>ClaimCapture</Text>
               <Text style={styles.brandSub}>Field inspections</Text>
             </View>
           </View>
@@ -236,6 +237,10 @@ export default function JobsScreen() {
                         longitude: coords?.longitude ?? null,
                         locationConfirmed: Boolean(item.geocode?.confirmed),
                         geocodeError: item.geocode?.error || '',
+                        dateOfLoss: jobDateOfLoss(item),
+                        claimNumber: item.claim?.claimNumber || '',
+                        phone: item.customer?.phone || '',
+                        email: item.customer?.email || '',
                       });
                       router.push('/property');
                     }}

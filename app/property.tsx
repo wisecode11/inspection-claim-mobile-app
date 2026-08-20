@@ -58,7 +58,7 @@ export default function PropertyScreen() {
       Alert.alert('Confirm location first', 'Move the pin if needed, then tap Confirm Location.');
       return;
     }
-    router.push('/inspection');
+    router.push('/setup');
   };
 
   return (

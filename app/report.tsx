@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 
 import { useInspection } from '@/context/inspection-context';
+import { loadLastPdf, saveLastPdf } from '@/lib/last-pdf';
 import {
   createInspectionPdf,
   downloadInspectionPdf,
@@ -20,7 +21,7 @@ import {
 
 export default function ReportScreen() {
   const router = useRouter();
-  const { data } = useInspection();
+  const { data, clearInspectionDraft } = useInspection();
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(true);
@@ -31,10 +32,18 @@ export default function ReportScreen() {
     (async () => {
       try {
         const uri = await createInspectionPdf(data);
-        if (active) setPdfUri(uri);
+        if (!active) return;
+        setPdfUri(uri);
+        if (data.jobId) {
+          await saveLastPdf(data.jobId, uri);
+        }
       } catch {
-        if (active) {
-          Alert.alert('PDF error', 'Could not generate the inspection PDF.');
+        // If generation fails after an Android remount, try the last saved PDF.
+        const existing = data.jobId ? await loadLastPdf(data.jobId) : null;
+        if (active && existing) {
+          setPdfUri(existing);
+        } else if (active) {
+          Alert.alert('PDF error', 'Could not generate the Evidence Package PDF.');
         }
       } finally {
         if (active) setCreating(false);
@@ -74,6 +83,15 @@ export default function ReportScreen() {
     }
   };
 
+  const backToJobs = async () => {
+    try {
+      await clearInspectionDraft();
+    } catch {
+      // ignore
+    }
+    router.replace('/jobs');
+  };
+
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.content}>
@@ -86,45 +104,50 @@ export default function ReportScreen() {
         </View>
 
         <Text style={styles.title}>
-          {creating ? 'Generating Report...' : 'Report Generated Successfully'}
+          {creating ? 'Building Evidence Package…' : 'Evidence Package Ready'}
         </Text>
         <Text style={styles.subtitle}>
           {creating
-            ? 'Creating a local PDF from this inspection.'
-            : 'Your inspection PDF is ready to view, download, or share.'}
+            ? 'Organizing photos and setup data into the final PDF.'
+            : 'Open the PDF in your device viewer, or download / share it.'}
         </Text>
 
         <View style={styles.reportCard}>
-          <Text style={styles.reportLabel}>INSPECTION REPORT</Text>
-          <Text style={styles.customer}>{data.customer}</Text>
+          <Text style={styles.reportLabel}>EVIDENCE PACKAGE</Text>
+          <Text style={styles.customer}>{data.homeownerName || data.customer}</Text>
           <Text style={styles.address}>{data.address}</Text>
           <Text style={styles.meta}>
-            {pdfUri ? 'Local PDF generated from inspection data' : 'Preparing PDF...'}
+            {pdfUri
+              ? `${data.photos.length} photos · empty sections omitted`
+              : 'Preparing PDF...'}
           </Text>
         </View>
 
         <Pressable
           style={[styles.primary, (!pdfUri || busy) && styles.disabled]}
           disabled={!pdfUri || busy}
-          onPress={() => runAction('view')}>
-          <Text style={styles.primaryText}>{busy ? 'Please wait...' : 'View PDF'}</Text>
+          onPress={() => void runAction('view')}
+        >
+          <Text style={styles.primaryText}>{busy ? 'Please wait...' : 'Open PDF'}</Text>
         </Pressable>
 
         <Pressable
           style={[styles.secondary, (!pdfUri || busy) && styles.disabled]}
           disabled={!pdfUri || busy}
-          onPress={() => runAction('download')}>
+          onPress={() => void runAction('download')}
+        >
           <Text style={styles.secondaryText}>Download PDF</Text>
         </Pressable>
 
         <Pressable
           style={[styles.link, (!pdfUri || busy) && styles.disabled]}
           disabled={!pdfUri || busy}
-          onPress={() => runAction('share')}>
+          onPress={() => void runAction('share')}
+        >
           <Text style={styles.linkText}>Share Report</Text>
         </Pressable>
 
-        <Pressable style={styles.done} onPress={() => router.replace('/jobs')}>
+        <Pressable style={styles.done} onPress={() => void backToJobs()}>
           <Text style={styles.doneText}>Back to Jobs</Text>
         </Pressable>
       </View>
