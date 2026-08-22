@@ -4,50 +4,26 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
-import { PrimaryButton, ui } from '@/components/inspection-ui';
+import { PrimaryButton, Screen, ui } from '@/components/inspection-ui';
 import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
 import { fetchWeatherVerification, verifyWeatherForJob } from '@/lib/api';
 import { captureHref } from '@/lib/routes';
 
-function Field({
-  label,
-  value,
-  onChangeText,
-  required = false,
-  placeholder,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (text: string) => void;
-  required?: boolean;
-  placeholder?: string;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad';
-}) {
+function ViewField({ label, value }: { label: string; value: string }) {
+  const display = value.trim() || '—';
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>
-        {label}
-        {required ? ' *' : ''}
-      </Text>
-      <TextInput
-        style={ui.input}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#8A9AA3"
-        keyboardType={keyboardType}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
-      />
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.valueBox}>
+        <Text style={[styles.value, !value.trim() && styles.valueEmpty]}>{display}</Text>
+      </View>
     </View>
   );
 }
@@ -156,12 +132,13 @@ export default function SetupScreen() {
   const tone = weatherTone(data.weatherMatchStatus);
 
   return (
-    <SafeAreaView style={ui.screen}>
+    <Screen edges={['bottom']}>
       <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.brand}>CLAIMCAPTURE</Text>
         <Text style={ui.title}>Inspection setup</Text>
         <Text style={ui.subtitle}>
-          Enter once — this fills the Evidence Package cover, summary, and existing conditions.
+          Job details from the claim — used for the Evidence Package cover, summary, and existing
+          conditions.
         </Text>
 
         <View style={[styles.weatherCard, { backgroundColor: tone.bg, borderColor: tone.border }]}>
@@ -189,70 +166,57 @@ export default function SetupScreen() {
           </Pressable>
         </View>
 
-        <Field
-          label="Property address"
-          required
-          value={data.address}
-          onChangeText={(address) => update({ address })}
-        />
-        <Field
-          label="Homeowner name"
-          required
-          value={data.homeownerName}
-          onChangeText={(homeownerName) => update({ homeownerName })}
-        />
-        <Field
-          label="Inspector name"
-          value={data.inspectorName}
-          onChangeText={(inspectorName) => update({ inspectorName })}
-        />
-        <Field
-          label="Phone"
-          value={data.phone}
-          onChangeText={(phone) => update({ phone })}
-          keyboardType="phone-pad"
-        />
-        <Field
-          label="Email"
-          value={data.email}
-          onChangeText={(email) => update({ email })}
-          keyboardType="email-address"
-        />
-        <Field
-          label="Claim number"
-          value={data.claimNumber}
-          onChangeText={(claimNumber) => update({ claimNumber })}
-        />
-        <Field
-          label="Policy number"
-          value={data.policyNumber}
-          onChangeText={(policyNumber) => update({ policyNumber })}
-        />
-        <Field
-          label="Date of loss"
-          value={data.dateOfLoss ? String(data.dateOfLoss).slice(0, 10) : ''}
-          onChangeText={(dateOfLoss) => update({ dateOfLoss: dateOfLoss || null })}
-          placeholder="YYYY-MM-DD"
-        />
-        <Field
-          label="Estimated roof age"
-          value={data.estimatedRoofAge}
-          onChangeText={(estimatedRoofAge) => update({ estimatedRoofAge })}
-          placeholder="e.g. 12 years"
-        />
+        <View style={styles.detailsCard}>
+          <Text style={styles.sectionLabel}>Job details</Text>
+          <ViewField label="Property address" value={data.address} />
+          <ViewField label="Homeowner name" value={data.homeownerName} />
+          <ViewField label="Inspector name" value={data.inspectorName} />
+          <ViewField label="Phone" value={data.phone} />
+          <ViewField label="Email" value={data.email} />
+          <ViewField label="Claim number" value={data.claimNumber} />
+          <ViewField label="Policy number" value={data.policyNumber} />
+          <ViewField
+            label="Date of loss"
+            value={data.dateOfLoss ? String(data.dateOfLoss).slice(0, 10) : ''}
+          />
+          <ViewField label="Estimated roof age" value={data.estimatedRoofAge} />
+        </View>
 
         <View style={{ marginTop: 24 }}>
           <PrimaryButton title="Start 10-Step Inspection" onPress={onContinue} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   brand: { color: '#E17035', fontSize: 12, fontWeight: '800', letterSpacing: 1.2, marginBottom: 6 },
-  field: { marginTop: 14 },
-  label: { color: '#526A74', fontSize: 13, fontWeight: '700', marginBottom: 6 },
+  detailsCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E9EC',
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 18,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    paddingTop: 14,
+  },
+  sectionLabel: {
+    color: '#163A4A',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  field: {
+    borderBottomColor: '#EDF1F2',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+  },
+  label: { color: '#526A74', fontSize: 12, fontWeight: '700', letterSpacing: 0.2, marginBottom: 6 },
+  valueBox: { minHeight: 22 },
+  value: { color: '#163A4A', fontSize: 16, fontWeight: '600', lineHeight: 22 },
+  valueEmpty: { color: '#84949C', fontWeight: '500' },
   weatherCard: {
     borderRadius: 16,
     borderWidth: 1,

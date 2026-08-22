@@ -56,7 +56,7 @@ export const CAPTURE_STEPS: CaptureStep[] = [
     id: 'collateral',
     number: 2,
     title: 'Collateral Damage',
-    subtitle: 'Tap a component, then capture photos with elevation and damage tags.',
+    subtitle: 'Select a component, then capture photos with elevation and damage tags.',
     mode: 'components',
     components: [
       'Downspouts',

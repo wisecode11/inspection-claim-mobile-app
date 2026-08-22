@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 
 import { PrimaryButton, ui } from '@/components/inspection-ui';
+import { SelectDropdown } from '@/components/select-dropdown';
 import { useInspection } from '@/context/inspection-context';
 import {
   BUILD_NOTE_FIELDS,
@@ -87,8 +88,11 @@ function PhotoGrid({
   if (photos.length === 0) {
     return (
       <View style={styles.empty}>
+        <View style={styles.emptyIcon}>
+          <View style={styles.emptyLens} />
+        </View>
         <Text style={styles.emptyTitle}>Ready to capture</Text>
-        <Text style={styles.emptyText}>Take or upload photos for this step.</Text>
+        <Text style={styles.emptyText}>Take or upload photos for this step. They will show up here.</Text>
       </View>
     );
   }
@@ -239,14 +243,16 @@ export function StepCapture({ step, onContinue }: Props) {
   return (
     <View>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>STEP {step.number}</Text>
+        <View style={styles.heroTop}>
+          <Text style={styles.eyebrow}>STEP {step.number}</Text>
+          <View style={[styles.countPill, stepPhotos.length > 0 && styles.countPillActive]}>
+            <Text style={[styles.count, stepPhotos.length > 0 && styles.countActive]}>
+              {stepPhotos.length} photo{stepPhotos.length === 1 ? '' : 's'}
+            </Text>
+          </View>
+        </View>
         <Text style={ui.title}>{step.title}</Text>
         <Text style={ui.subtitle}>{step.subtitle}</Text>
-        <View style={styles.countPill}>
-          <Text style={styles.count}>
-            {stepPhotos.length} photo{stepPhotos.length === 1 ? '' : 's'}
-          </Text>
-        </View>
       </View>
 
       {movingPhotoId ? (
@@ -289,22 +295,23 @@ export function StepCapture({ step, onContinue }: Props) {
       )}
 
       {step.mode === 'slots' && step.slots ? (
-        <>
-          <Text style={styles.label}>Capture for</Text>
+        <View style={styles.sectionCard}>
+          <Text style={styles.labelInCard}>Capture for</Text>
           <ChipRow options={step.slots} selected={activeSlot} onChange={(value) => setActiveSlot(String(value))} />
-        </>
+        </View>
       ) : null}
 
       {(step.mode === 'components' || step.mode === 'metal' || step.mode === 'checklist') &&
       step.components ? (
-        <>
-          <Text style={styles.label}>Component</Text>
-          <ChipRow
+        <View style={styles.sectionCard}>
+          <SelectDropdown
+            label="Component"
             options={step.components}
             selected={activeComponent}
-            onChange={(value) => setActiveComponent(String(value))}
+            placeholder="Select a component"
+            onChange={setActiveComponent}
           />
-        </>
+        </View>
       ) : null}
 
       {step.mode === 'checklist' && step.components ? (
@@ -448,81 +455,143 @@ export function StepCapture({ step, onContinue }: Props) {
 }
 
 const styles = StyleSheet.create({
-  hero: { marginBottom: 4 },
-  eyebrow: { color: '#E17035', fontSize: 11, fontWeight: '800', letterSpacing: 1.1 },
+  hero: { marginBottom: 8 },
+  heroTop: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  eyebrow: {
+    color: '#C45C28',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
   countPill: {
-    alignSelf: 'flex-start',
     backgroundColor: '#FFF1E8',
+    borderColor: '#F0C9B0',
     borderRadius: 20,
-    marginTop: 12,
+    borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  count: { color: '#C45C28', fontSize: 12, fontWeight: '800' },
-  label: { color: '#163A4A', fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 16 },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  countPillActive: {
+    backgroundColor: '#E17035',
+    borderColor: '#E17035',
+  },
+  count: { color: '#9A4A1F', fontSize: 12, fontWeight: '800' },
+  countActive: { color: '#FFFFFF' },
+  label: { color: '#163A4A', fontSize: 14, fontWeight: '800', marginBottom: 10, marginTop: 18 },
+  labelInCard: { color: '#163A4A', fontSize: 14, fontWeight: '800', marginBottom: 12 },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E9EC',
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 16,
+    padding: 14,
+  },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#D8E0E4',
-    borderRadius: 10,
-    borderWidth: 1,
+    borderColor: '#C5D0D6',
+    borderRadius: 12,
+    borderWidth: 1.5,
     maxWidth: '100%',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   chipOn: { backgroundColor: '#163A4A', borderColor: '#163A4A' },
-  chipText: { color: '#526A74', fontSize: 12, fontWeight: '700' },
+  chipText: { color: '#3D5560', fontSize: 13, fontWeight: '700' },
   chipTextOn: { color: '#FFFFFF' },
-  quickBar: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  quickBar: { flexDirection: 'row', gap: 10, marginTop: 18 },
   capture: {
     alignItems: 'center',
     backgroundColor: '#E17035',
-    borderRadius: 12,
+    borderRadius: 14,
     flex: 1.2,
-    padding: 14,
+    minHeight: 52,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 15,
   },
-  captureText: { color: '#FFF', fontWeight: '800' },
+  captureText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
   gallery: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderColor: '#163A4A',
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: 1.5,
     flex: 1,
-    padding: 14,
+    minHeight: 52,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 15,
   },
-  galleryText: { color: '#163A4A', fontWeight: '800' },
+  galleryText: { color: '#163A4A', fontSize: 15, fontWeight: '800' },
   another: {
     alignItems: 'center',
     backgroundColor: '#163A4A',
-    borderRadius: 12,
+    borderRadius: 14,
     marginTop: 10,
-    padding: 13,
+    minHeight: 48,
+    justifyContent: 'center',
+    padding: 14,
   },
-  anotherText: { color: '#FFFFFF', fontWeight: '800' },
+  anotherText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   empty: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    marginTop: 16,
-    padding: 28,
+    borderColor: '#D8E0E4',
+    borderRadius: 16,
+    borderStyle: 'dashed',
+    borderWidth: 1.5,
+    marginTop: 18,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
   },
-  emptyTitle: { color: '#163A4A', fontSize: 15, fontWeight: '800' },
-  emptyText: { color: '#70818A', marginTop: 4 },
+  emptyIcon: {
+    alignItems: 'center',
+    backgroundColor: '#EEF3F5',
+    borderRadius: 28,
+    height: 56,
+    justifyContent: 'center',
+    marginBottom: 14,
+    width: 56,
+  },
+  emptyLens: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#84949C',
+    borderRadius: 12,
+    borderWidth: 2.5,
+    height: 24,
+    width: 24,
+  },
+  emptyTitle: { color: '#163A4A', fontSize: 17, fontWeight: '800' },
+  emptyText: {
+    color: '#526A74',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 6,
+    textAlign: 'center',
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 },
   photoWrap: { width: '47%' },
   photo: { borderRadius: 12, height: 130, width: '100%' },
-  caption: { color: '#526A74', fontSize: 12, marginTop: 6 },
+  caption: { color: '#3D5560', fontSize: 12, fontWeight: '600', marginTop: 6 },
   photoActions: { flexDirection: 'row', gap: 6, marginTop: 6 },
   miniBtn: {
     backgroundColor: '#EEF3F5',
     borderRadius: 8,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
   miniDisabled: { opacity: 0.35 },
   miniText: { color: '#163A4A', fontSize: 11, fontWeight: '800' },
-  coverLink: { color: '#E17035', fontSize: 12, fontWeight: '800', marginTop: 4 },
+  coverLink: { color: '#C45C28', fontSize: 12, fontWeight: '800', marginTop: 4 },
   delete: { color: '#BD3C2D', fontSize: 13, fontWeight: '800', marginTop: 4 },
   listCard: { backgroundColor: '#FFFFFF', borderRadius: 14, overflow: 'hidden' },
   listRow: {
@@ -548,7 +617,7 @@ const styles = StyleSheet.create({
   listText: { color: '#163A4A', flex: 1, fontSize: 14, fontWeight: '600' },
   buildGrid: { gap: 4 },
   fieldRow: { marginBottom: 8 },
-  fieldLabel: { color: '#526A74', fontSize: 13, fontWeight: '700' },
+  fieldLabel: { color: '#3D5560', fontSize: 13, fontWeight: '700' },
   fieldInput: { marginTop: 6 },
   moveCard: {
     backgroundColor: '#FFF8F2',

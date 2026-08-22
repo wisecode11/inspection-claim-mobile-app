@@ -5,21 +5,33 @@
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
+/** RoofCheck product palette used across login, splash, and inspection screens. */
+export const Brand = {
+  background: '#F4F7F8',
+  surface: '#FFFFFF',
+  ink: '#163A4A',
+  muted: '#60737D',
+  soft: '#84949C',
+  border: '#D8E0E4',
+  accent: '#E17035',
+  danger: '#C0392B',
+} as const;
+
+const tintColorLight = Brand.ink;
 const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: Brand.ink,
+    background: Brand.background,
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: Brand.muted,
+    tabIconDefault: Brand.muted,
     tabIconSelected: tintColorLight,
   },
   dark: {
     text: '#ECEDEE',
-    background: '#151718',
+    background: Brand.ink,
     tint: tintColorDark,
     icon: '#9BA1A6',
     tabIconDefault: '#9BA1A6',

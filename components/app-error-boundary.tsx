@@ -1,5 +1,8 @@
 import { Component, type ErrorInfo, type PropsWithChildren } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { Brand } from '@/constants/theme';
 
 type ErrorBoundaryState = {
   error: Error | null;
@@ -22,32 +25,32 @@ export class AppErrorBoundary extends Component<PropsWithChildren, ErrorBoundary
     }
 
     return (
-      <View style={styles.screen}>
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <Text style={styles.title}>Something went wrong</Text>
         <Text style={styles.message}>{this.state.error.message}</Text>
         <Pressable onPress={() => this.setState({ error: null })} style={styles.button}>
           <Text style={styles.buttonText}>Try again</Text>
         </Pressable>
-      </View>
+      </SafeAreaView>
     );
   }
 }
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: '#F4F7F8',
+    backgroundColor: Brand.background,
     flex: 1,
     justifyContent: 'center',
     padding: 28,
   },
-  title: { color: '#163A4A', fontSize: 24, fontWeight: '800' },
-  message: { color: '#C0392B', fontSize: 15, lineHeight: 22, marginTop: 12 },
+  title: { color: Brand.ink, fontSize: 24, fontWeight: '800' },
+  message: { color: Brand.danger, fontSize: 15, lineHeight: 22, marginTop: 12 },
   button: {
     alignItems: 'center',
-    backgroundColor: '#E17035',
+    backgroundColor: Brand.accent,
     borderRadius: 12,
     marginTop: 24,
     padding: 16,
   },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  buttonText: { color: Brand.surface, fontSize: 16, fontWeight: '800' },
 });

@@ -1,8 +1,25 @@
 import { PropsWithChildren } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
+
+import { Brand } from '@/constants/theme';
+
+type ScreenProps = PropsWithChildren<{
+  edges?: readonly Edge[];
+  style?: StyleProp<ViewStyle>;
+}>;
+
+/** Screen-level safe area wrapper — prefer this over RN SafeAreaView. */
+export function Screen({ children, edges = ['bottom'], style }: ScreenProps) {
+  return (
+    <SafeAreaView style={[ui.screen, style]} edges={edges}>
+      {children}
+    </SafeAreaView>
+  );
+}
 
 export function Page({ children }: PropsWithChildren) {
-  return <View style={styles.page}>{children}</View>;
+  return <Screen edges={['bottom']}>{children}</Screen>;
 }
 
 export function SectionTitle({ children }: PropsWithChildren) {
@@ -35,26 +52,47 @@ export function InfoRow({ label, value, last = false }: { label: string; value: 
 }
 
 export const ui = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F4F7F8' },
+  screen: { flex: 1, backgroundColor: Brand.background },
   content: { padding: 20, paddingBottom: 34 },
-  card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16 },
-  title: { color: '#163A4A', fontSize: 25, fontWeight: '800' },
-  subtitle: { color: '#70818A', fontSize: 14, lineHeight: 20, marginTop: 6 },
-  input: { backgroundColor: '#FFFFFF', borderColor: '#D8E0E4', borderRadius: 12, borderWidth: 1, color: '#163A4A', fontSize: 15, padding: 14 },
-  option: { alignItems: 'center', backgroundColor: '#FFFFFF', borderColor: '#D8E0E4', borderRadius: 10, borderWidth: 1, flex: 1, padding: 12 },
-  optionSelected: { backgroundColor: '#163A4A', borderColor: '#163A4A' },
+  card: { backgroundColor: Brand.surface, borderRadius: 16, padding: 16 },
+  title: { color: Brand.ink, fontSize: 26, fontWeight: '800', letterSpacing: -0.3 },
+  subtitle: { color: Brand.muted, fontSize: 15, lineHeight: 22, marginTop: 8 },
+  input: {
+    backgroundColor: Brand.surface,
+    borderColor: Brand.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    color: Brand.ink,
+    fontSize: 15,
+    padding: 14,
+  },
+  option: {
+    alignItems: 'center',
+    backgroundColor: Brand.surface,
+    borderColor: Brand.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    flex: 1,
+    padding: 12,
+  },
+  optionSelected: { backgroundColor: Brand.ink, borderColor: Brand.ink },
   optionText: { color: '#526A74', fontSize: 14, fontWeight: '700' },
-  optionTextSelected: { color: '#FFFFFF' },
+  optionTextSelected: { color: Brand.surface },
 });
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F4F7F8' },
-  sectionTitle: { color: '#163A4A', fontSize: 16, fontWeight: '800', marginBottom: 10, marginTop: 24 },
-  button: { alignItems: 'center', backgroundColor: '#E17035', borderRadius: 12, padding: 16 },
+  sectionTitle: { color: Brand.ink, fontSize: 16, fontWeight: '800', marginBottom: 10, marginTop: 24 },
+  button: { alignItems: 'center', backgroundColor: Brand.accent, borderRadius: 14, minHeight: 54, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 16 },
   buttonDisabled: { opacity: 0.55 },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  infoRow: { borderBottomColor: '#EDF1F2', borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14 },
+  buttonText: { color: Brand.surface, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+  infoRow: {
+    borderBottomColor: '#EDF1F2',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+  },
   infoRowLast: { borderBottomWidth: 0 },
-  infoLabel: { color: '#70818A', fontSize: 14, marginRight: 15 },
-  infoValue: { color: '#163A4A', flex: 1, fontSize: 14, fontWeight: '700', textAlign: 'right' },
+  infoLabel: { color: Brand.muted, fontSize: 14, marginRight: 15 },
+  infoValue: { color: Brand.ink, flex: 1, fontSize: 14, fontWeight: '700', textAlign: 'right' },
 });

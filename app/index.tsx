@@ -1,6 +1,8 @@
 import { Redirect } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 
 export default function Index() {
@@ -8,15 +10,20 @@ export default function Index() {
 
   if (!isReady) {
     return (
-      <View style={styles.screen}>
-        <ActivityIndicator color="#E17035" size="large" />
-      </View>
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+        <ActivityIndicator color={Brand.accent} size="large" />
+      </SafeAreaView>
     );
   }
 
-  return <Redirect href={token ? '/jobs' : '/login'} />;
+  return <Redirect href={token ? '/(tabs)/home' : '/login'} />;
 }
 
 const styles = StyleSheet.create({
-  screen: { alignItems: 'center', backgroundColor: '#F4F7F8', flex: 1, justifyContent: 'center' },
+  screen: {
+    alignItems: 'center',
+    backgroundColor: Brand.background,
+    flex: 1,
+    justifyContent: 'center',
+  },
 });

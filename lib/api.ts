@@ -74,6 +74,8 @@ export type InspectionJob = {
   claim?: {
     dateOfLoss?: string | null;
     claimNumber?: string;
+    policyNumber?: string;
+    insuranceCompany?: string;
     status?: string;
   };
   customer: JobCustomer | null;

@@ -1,35 +1,75 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Brand } from '@/constants/theme';
+
+const TAB_BAR_CONTENT_HEIGHT = 56;
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
+        tabBarActiveTintColor: Brand.accent,
+        tabBarInactiveTintColor: Brand.soft,
         tabBarButton: HapticTab,
-      }}>
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            height: TAB_BAR_CONTENT_HEIGHT + bottomInset,
+            paddingBottom: bottomInset,
+          },
+        ],
+        tabBarLabelStyle: styles.tabLabel,
+      }}
+    >
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons color={color} name="home" size={size} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="jobs"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Jobs',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons color={color} name="briefcase" size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons color={color} name="person" size={size} />
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    backgroundColor: Brand.surface,
+    borderTopColor: Brand.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 6,
+  },
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+});

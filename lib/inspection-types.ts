@@ -51,6 +51,7 @@ export type JobSeed = Pick<
   | 'geocodeError'
   | 'dateOfLoss'
   | 'claimNumber'
+  | 'policyNumber'
   | 'phone'
   | 'email'
 >;

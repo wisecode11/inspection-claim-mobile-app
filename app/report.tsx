@@ -4,12 +4,12 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
+import { Screen } from '@/components/inspection-ui';
 import { useInspection } from '@/context/inspection-context';
 import { loadLastPdf, saveLastPdf } from '@/lib/last-pdf';
 import {
@@ -89,11 +89,11 @@ export default function ReportScreen() {
     } catch {
       // ignore
     }
-    router.replace('/jobs');
+    router.replace('/(tabs)/jobs');
   };
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <Screen edges={['bottom']} style={styles.screen}>
       <View style={styles.content}>
         <View style={styles.success}>
           {creating ? (
@@ -151,7 +151,7 @@ export default function ReportScreen() {
           <Text style={styles.doneText}>Back to Jobs</Text>
         </Pressable>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 

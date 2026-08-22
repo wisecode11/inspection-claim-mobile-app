@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { InfoRow, PrimaryButton, ui } from '@/components/inspection-ui';
+import { InfoRow, PrimaryButton, Screen, ui } from '@/components/inspection-ui';
 import { useInspection } from '@/context/inspection-context';
 import { CAPTURE_STEPS } from '@/lib/capture-steps';
 import { findInspectionGaps, photosForStep } from '@/lib/review-gaps';
@@ -13,7 +13,7 @@ export default function ReviewScreen() {
   const gaps = findInspectionGaps(data);
 
   return (
-    <SafeAreaView style={ui.screen}>
+    <Screen edges={['bottom']}>
       <ScrollView contentContainerStyle={ui.content}>
         <Text style={ui.title}>Review & quality check</Text>
         <Text style={ui.subtitle}>
@@ -78,7 +78,7 @@ export default function ReviewScreen() {
           <PrimaryButton title="Generate Evidence Package" onPress={() => router.push('/report')} />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 

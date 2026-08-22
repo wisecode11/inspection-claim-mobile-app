@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Screen } from '@/components/inspection-ui';
 import { LocationMap } from '@/components/location-map';
 import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
@@ -62,7 +63,7 @@ export default function PropertyScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <Screen edges={['bottom']} style={styles.screen}>
       <View style={styles.content}>
         <Text style={styles.eyebrow}>PROPERTY LOCATION</Text>
         <Text style={styles.title}>{data.address}</Text>
@@ -118,7 +119,7 @@ export default function PropertyScreen() {
           <Text style={styles.buttonText}>Start Inspection</Text>
         </Pressable>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 

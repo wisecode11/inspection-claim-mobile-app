@@ -1,20 +1,53 @@
+import * as SplashScreen from 'expo-splash-screen';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import { AnimatedSplash } from '@/components/animated-splash';
 import { AppErrorBoundary } from '@/components/app-error-boundary';
+import { Brand } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { InspectionProvider } from '@/context/inspection-context';
+
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Native splash may already be hidden in some environments.
+});
+
+const SPLASH_MIN_MS = 1800;
+const SPLASH_EXIT_MS = 400;
 
 function AppShell() {
   const { isReady, token } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const [minTimeDone, setMinTimeDone] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    if (!isReady) {
+    void SplashScreen.hideAsync();
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setMinTimeDone(true), SPLASH_MIN_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isReady || !minTimeDone) {
+      return;
+    }
+
+    setExiting(true);
+    const timer = setTimeout(() => setShowSplash(false), SPLASH_EXIT_MS);
+    return () => clearTimeout(timer);
+  }, [isReady, minTimeDone]);
+
+  useEffect(() => {
+    if (!isReady || showSplash) {
       return;
     }
 
@@ -22,22 +55,17 @@ function AppShell() {
     if (!token && !onLogin) {
       router.replace('/login');
     }
-  }, [isReady, token, pathname, router]);
-
-  if (!isReady) {
-    return (
-      <View style={styles.boot}>
-        <ActivityIndicator color="#E17035" size="large" />
-      </View>
-    );
-  }
+    if (token && onLogin) {
+      router.replace('/(tabs)/home');
+    }
+  }, [isReady, token, pathname, router, showSplash]);
 
   return (
-    <>
-      <Stack screenOptions={{ headerShadowVisible: false, headerTintColor: '#163A4A' }}>
+    <View style={styles.root}>
+      <Stack screenOptions={{ headerShadowVisible: false, headerTintColor: Brand.ink }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="jobs" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="property" options={{ title: 'Property Details' }} />
         <Stack.Screen name="setup" options={{ title: 'Inspection Setup' }} />
         <Stack.Screen name="capture/[step]" options={{ headerShown: false, title: 'Field Capture' }} />
@@ -53,22 +81,25 @@ function AppShell() {
         <Stack.Screen name="summary" options={{ title: 'Inspection Summary' }} />
       </Stack>
       <StatusBar style="dark" />
-    </>
+      {showSplash ? <AnimatedSplash exiting={exiting} /> : null}
+    </View>
   );
 }
 
 export default function RootLayout() {
   return (
-    <AppErrorBoundary>
-      <AuthProvider>
-        <InspectionProvider>
-          <AppShell />
-        </InspectionProvider>
-      </AuthProvider>
-    </AppErrorBoundary>
+    <GestureHandlerRootView style={styles.root}>
+      <AppErrorBoundary>
+        <AuthProvider>
+          <InspectionProvider>
+            <AppShell />
+          </InspectionProvider>
+        </AuthProvider>
+      </AppErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  boot: { alignItems: 'center', backgroundColor: '#F4F7F8', flex: 1, justifyContent: 'center' },
+  root: { backgroundColor: Brand.background, flex: 1 },
 });
