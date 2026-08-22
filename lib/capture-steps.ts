@@ -61,13 +61,17 @@ export const CAPTURE_STEPS: CaptureStep[] = [
     components: [
       'Downspouts',
       'Window Screens',
+      'Metal Fascia',
       'Siding',
       'Garage Doors',
-      'AC Condenser',
+      'AC Condenser / HVAC Fins',
       'Fences',
       'Decks',
-      'Gutters',
-      'Windows',
+      'Railings',
+      'Satellite Dishes',
+      'Gutter Guards / Gutter Helmets',
+      'Gutter Toppers',
+      'Skylights',
       'Other',
     ],
     locationTags: [...ELEVATION_TAGS],
@@ -222,6 +226,22 @@ export function prevStepId(current: StepId): StepId | 'setup' {
   return CAPTURE_STEPS[index - 1].id;
 }
 
+export type PhotoAnnotation = {
+  id: string;
+  shape: 'circle' | 'arrow' | 'draw' | 'text';
+  /** Normalized 0–1 relative to the image box (optional legacy support) */
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  points?: { x: number; y: number }[];
+  text?: string;
+};
+
 export type PhotoItem = {
   id: string;
   uri: string;
@@ -234,6 +254,7 @@ export type PhotoItem = {
   notes?: string;
   shotType?: 'overview' | 'close-up' | 'standard';
   isCover?: boolean;
+  annotations?: PhotoAnnotation[];
   createdAt: string;
 };
 

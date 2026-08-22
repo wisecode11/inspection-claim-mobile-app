@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 
 import { PrimaryButton, ui } from '@/components/inspection-ui';
+import { PhotoAnnotator } from '@/components/photo-annotator';
 import { SelectDropdown } from '@/components/select-dropdown';
 import { useInspection } from '@/context/inspection-context';
 import {
@@ -76,6 +77,7 @@ function PhotoGrid({
   onSetCover,
   onReorder,
   onMove,
+  onAnnotate,
   showCover,
 }: {
   photos: PhotoItem[];
@@ -83,6 +85,7 @@ function PhotoGrid({
   onSetCover?: (id: string) => void;
   onReorder: (id: string, direction: 'up' | 'down') => void;
   onMove: (id: string) => void;
+  onAnnotate?: (photo: PhotoItem) => void;
   showCover?: boolean;
 }) {
   if (photos.length === 0) {
@@ -101,11 +104,22 @@ function PhotoGrid({
     <View style={styles.grid}>
       {photos.map((photo, index) => (
         <View key={photo.id} style={styles.photoWrap}>
-          <Image source={{ uri: photo.uri }} style={styles.photo} />
+          <Pressable
+            onPress={() => {
+              if (onAnnotate) onAnnotate(photo);
+            }}
+            style={styles.photoTap}
+          >
+            <Image source={{ uri: photo.uri }} style={styles.photo} />
+            <View style={styles.annotateBadge}>
+              <Text style={styles.annotateBadgeText}>Mark</Text>
+            </View>
+          </Pressable>
           <Text style={styles.caption} numberOfLines={2}>
             {photo.label}
             {photo.shotType && photo.shotType !== 'standard' ? ` · ${photo.shotType}` : ''}
             {photo.damageTags.length ? ` · ${photo.damageTags.join(', ')}` : ''}
+            {photo.notes ? ` · ${photo.notes}` : ''}
           </Text>
           <View style={styles.photoActions}>
             <Pressable
@@ -141,8 +155,15 @@ function PhotoGrid({
 }
 
 export function StepCapture({ step, onContinue }: Props) {
-  const { data, addPhotos, removePhoto, setCoverPhoto, update, reorderPhoto, movePhotoToStep } =
-    useInspection();
+  const {
+    data,
+    addPhotos,
+    removePhoto,
+    setCoverPhoto,
+    update,
+    reorderPhoto,
+    movePhotoToStep,
+  } = useInspection();
   const stepPhotos = useMemo(
     () => data.photos.filter((photo) => photo.stepId === step.id),
     [data.photos, step.id]
@@ -155,7 +176,13 @@ export function StepCapture({ step, onContinue }: Props) {
   const [damageTags, setDamageTags] = useState<string[]>([]);
   const [metalShot, setMetalShot] = useState<'overview' | 'close-up'>('overview');
   const [labelOverride, setLabelOverride] = useState('');
+  const [photoNotes, setPhotoNotes] = useState('');
   const [movingPhotoId, setMovingPhotoId] = useState<string | null>(null);
+  const [annotatingPhoto, setAnnotatingPhoto] = useState<PhotoItem | null>(null);
+
+  const openAnnotator = (photo: PhotoItem) => {
+    setAnnotatingPhoto(photo);
+  };
 
   const pickImages = async (fromCamera: boolean, allowMultiple = false) => {
     if (fromCamera) {
@@ -215,6 +242,7 @@ export function StepCapture({ step, onContinue }: Props) {
       roofDirection: direction || undefined,
       damageTags,
       shotType,
+      notes: step.mode === 'metal' ? photoNotes.trim() || undefined : undefined,
     });
 
     if (step.mode === 'metal' && metalShot === 'overview') {
@@ -341,6 +369,16 @@ export function StepCapture({ step, onContinue }: Props) {
             selected={metalShot}
             onChange={(value) => setMetalShot(value as 'overview' | 'close-up')}
           />
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={[ui.input, styles.notesInput]}
+            multiline
+            textAlignVertical="top"
+            placeholder="Optional notes for this metal photo"
+            placeholderTextColor="#8A9AA3"
+            value={photoNotes}
+            onChangeText={setPhotoNotes}
+          />
         </>
       ) : null}
 
@@ -445,6 +483,29 @@ export function StepCapture({ step, onContinue }: Props) {
         showCover={step.id === 'elevations'}
         onReorder={reorderPhoto}
         onMove={promptMove}
+        onAnnotate={openAnnotator}
+      />
+
+      <PhotoAnnotator
+        visible={Boolean(annotatingPhoto)}
+        uri={annotatingPhoto?.uri ?? ''}
+        onClose={() => setAnnotatingPhoto(null)}
+        onSaved={(uri) => {
+          if (!annotatingPhoto) return;
+          // Spec rule: annotations save as a copy — never alter the original photo.
+          addPhotos([uri], {
+            stepId: annotatingPhoto.stepId,
+            label: `${annotatingPhoto.label} (annotated)`,
+            component: annotatingPhoto.component,
+            elevation: annotatingPhoto.elevation,
+            roofDirection: annotatingPhoto.roofDirection,
+            damageTags: [...annotatingPhoto.damageTags],
+            notes: annotatingPhoto.notes,
+            shotType: annotatingPhoto.shotType,
+            isCover: false,
+          });
+          setAnnotatingPhoto(null);
+        }}
       />
 
       <View style={{ marginTop: 24 }}>
@@ -580,7 +641,18 @@ const styles = StyleSheet.create({
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 },
   photoWrap: { width: '47%' },
+  photoTap: { position: 'relative' },
   photo: { borderRadius: 12, height: 130, width: '100%' },
+  annotateBadge: {
+    backgroundColor: 'rgba(22, 58, 74, 0.82)',
+    borderRadius: 8,
+    bottom: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    position: 'absolute',
+    right: 8,
+  },
+  annotateBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   caption: { color: '#3D5560', fontSize: 12, fontWeight: '600', marginTop: 6 },
   photoActions: { flexDirection: 'row', gap: 6, marginTop: 6 },
   miniBtn: {
@@ -619,6 +691,7 @@ const styles = StyleSheet.create({
   fieldRow: { marginBottom: 8 },
   fieldLabel: { color: '#3D5560', fontSize: 13, fontWeight: '700' },
   fieldInput: { marginTop: 6 },
+  notesInput: { height: 88, marginTop: 0 },
   moveCard: {
     backgroundColor: '#FFF8F2',
     borderColor: '#F0D2C0',
