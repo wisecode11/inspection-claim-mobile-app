@@ -324,8 +324,13 @@ export function StepCapture({ step, onContinue }: Props) {
 
       {step.mode === 'slots' && step.slots ? (
         <View style={styles.sectionCard}>
-          <Text style={styles.labelInCard}>Capture for</Text>
-          <ChipRow options={step.slots} selected={activeSlot} onChange={(value) => setActiveSlot(String(value))} />
+          <SelectDropdown
+            label="Capture for"
+            options={step.slots}
+            selected={activeSlot}
+            placeholder="Select elevation / structure"
+            onChange={setActiveSlot}
+          />
         </View>
       ) : null}
 
@@ -383,37 +388,40 @@ export function StepCapture({ step, onContinue }: Props) {
       ) : null}
 
       {step.locationTags?.length ? (
-        <>
-          <Text style={styles.label}>Elevation / location</Text>
-          <ChipRow
+        <View style={styles.sectionCard}>
+          <SelectDropdown
+            label="Elevation / location"
             options={[...step.locationTags]}
             selected={elevation}
-            onChange={(value) => setElevation(String(value))}
+            placeholder="Select elevation / location"
+            onChange={setElevation}
           />
-        </>
+        </View>
       ) : null}
 
       {step.directionTags?.length ? (
-        <>
-          <Text style={styles.label}>Roof direction</Text>
-          <ChipRow
+        <View style={styles.sectionCard}>
+          <SelectDropdown
+            label="Roof direction"
             options={[...step.directionTags]}
             selected={direction}
-            onChange={(value) => setDirection(String(value))}
+            placeholder="Select roof direction"
+            onChange={setDirection}
           />
-        </>
+        </View>
       ) : null}
 
       {step.damageTags?.length ? (
-        <>
-          <Text style={styles.label}>Damage tags</Text>
-          <ChipRow
+        <View style={styles.sectionCard}>
+          <SelectDropdown
+            label="Damage tags"
             options={[...step.damageTags]}
             selected={damageTags}
             multi
-            onChange={(value) => setDamageTags(value as string[])}
+            placeholder="Select damage tags"
+            onChange={setDamageTags}
           />
-        </>
+        </View>
       ) : null}
 
       {step.mode === 'build-notes' ? (

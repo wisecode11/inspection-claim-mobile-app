@@ -1,32 +1,35 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CAPTURE_STEPS, StepId } from '@/lib/capture-steps';
 import { useInspection } from '@/context/inspection-context';
-import { captureHref } from '@/lib/routes';
 
 type Props = {
   stepId: StepId;
   onSkip?: () => void;
 };
 
-const PROGRESS_PAD = 16;
-const PROGRESS_GAP = 6;
-const CHIP_MIN = 26;
-const CHIP_MAX = 34;
+/** Short labels for the progress strip (full titles stay in the header). */
+const STEP_SHORT_LABELS: Record<StepId, string> = {
+  elevations: 'Elevations',
+  collateral: 'Collateral',
+  spatter: 'Spatter',
+  metal: 'Metal',
+  shingles: 'Shingles',
+  'test-squares': 'Test Squares',
+  'wear-tear': 'Wear & Tear',
+  'tie-ins': 'Tie-Ins',
+  'roof-overviews': 'Overviews',
+  'build-notes': 'Build Notes',
+};
 
 export function CaptureChrome({ stepId, onSkip }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const { data, markStepComplete } = useInspection();
+  const { data, markStepComplete, update } = useInspection();
   const step = CAPTURE_STEPS.find((entry) => entry.id === stepId);
   if (!step) return null;
-
-  const stepCount = CAPTURE_STEPS.length;
-  const available = width - PROGRESS_PAD * 2 - PROGRESS_GAP * (stepCount - 1);
-  const chipSize = Math.max(CHIP_MIN, Math.min(CHIP_MAX, Math.floor(available / stepCount)));
 
   const goSkip = () => {
     markStepComplete(stepId);
@@ -35,6 +38,14 @@ export function CaptureChrome({ stepId, onSkip }: Props) {
 
   const goHome = () => {
     router.replace('/(tabs)/home');
+  };
+
+  const selectStep = (id: StepId) => {
+    if (id === stepId) return;
+    // Defer so any open dropdown Modal can unmount cleanly (Android Fabric).
+    requestAnimationFrame(() => {
+      update({ currentStepId: id });
+    });
   };
 
   return (
@@ -68,37 +79,39 @@ export function CaptureChrome({ stepId, onSkip }: Props) {
         </Pressable>
       </View>
 
-      <View style={styles.progressRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.progressRow}
+        style={styles.progressScroll}
+      >
         {CAPTURE_STEPS.map((entry) => {
           const done = data.completedSteps.includes(entry.id);
           const active = entry.id === stepId;
+          const label = STEP_SHORT_LABELS[entry.id] || entry.title;
           return (
             <Pressable
               key={entry.id}
               accessibilityRole="button"
-              accessibilityLabel={`Step ${entry.number}${active ? ', current' : done ? ', completed' : ''}`}
+              accessibilityLabel={`${entry.title}${active ? ', current' : done ? ', completed' : ''}`}
               hitSlop={4}
               style={[
                 styles.chip,
-                { width: chipSize, height: chipSize, borderRadius: chipSize / 2 },
                 active && styles.chipActive,
                 done && !active && styles.chipDone,
               ]}
-              onPress={() => router.replace(captureHref(entry.id))}
+              onPress={() => selectStep(entry.id)}
             >
               <Text
-                style={[
-                  styles.chipText,
-                  { fontSize: chipSize >= 30 ? 12 : 11 },
-                  (active || done) && styles.chipTextOn,
-                ]}
+                style={[styles.chipText, (active || done) && styles.chipTextOn]}
+                numberOfLines={1}
               >
-                {done && !active ? '✓' : entry.number}
+                {done && !active ? `✓ ${label}` : label}
               </Text>
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -142,20 +155,24 @@ const styles = StyleSheet.create({
   skip: { color: '#FFB089', textAlign: 'right', fontWeight: '800' },
   headerTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
   headerStep: { color: '#E8F0F3', fontSize: 13, fontWeight: '600', marginTop: 3 },
+  progressScroll: { marginTop: 14 },
   progressRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: PROGRESS_PAD,
-    paddingTop: 14,
+    gap: 8,
+    paddingHorizontal: 16,
   },
   chip: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.16)',
+    borderRadius: 4,
     justifyContent: 'center',
+    minHeight: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   chipActive: { backgroundColor: '#E17035' },
   chipDone: { backgroundColor: '#2F6B57' },
-  chipText: { color: '#EEF4F6', fontWeight: '800' },
+  chipText: { color: '#EEF4F6', fontSize: 12, fontWeight: '800' },
   chipTextOn: { color: '#FFFFFF' },
 });

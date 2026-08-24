@@ -9,8 +9,13 @@ import { captureHref } from '@/lib/routes';
 
 export default function ReviewScreen() {
   const router = useRouter();
-  const { data } = useInspection();
+  const { data, update } = useInspection();
   const gaps = findInspectionGaps(data);
+
+  const openStep = (stepId: (typeof CAPTURE_STEPS)[number]['id']) => {
+    update({ currentStepId: stepId });
+    router.push(captureHref(stepId));
+  };
 
   return (
     <Screen edges={['bottom']}>
@@ -42,7 +47,7 @@ export default function ReviewScreen() {
               <Pressable
                 key={step.id}
                 style={[styles.row, index === CAPTURE_STEPS.length - 1 && styles.rowLast]}
-                onPress={() => router.push(captureHref(step.id))}
+                onPress={() => openStep(step.id)}
               >
                 <Text style={styles.rowTitle}>
                   {done ? '✓ ' : ''}
@@ -62,7 +67,7 @@ export default function ReviewScreen() {
                 <Pressable
                   key={`${gap.stepId}-${gap.message}`}
                   style={styles.gapRow}
-                  onPress={() => router.push(captureHref(gap.stepId))}
+                  onPress={() => openStep(gap.stepId)}
                 >
                   <Text style={styles.gapTitle}>{gap.title}</Text>
                   <Text style={styles.gapText}>{gap.message}</Text>

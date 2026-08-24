@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "RoofCheck",
-    "slug": "roofcheck",
+    "slug": "claim-capture",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.devwisecodesteam.claimcapture",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Allow CameraApp to take photos.",
@@ -29,11 +30,14 @@
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "package": "com.devwisecodesteam.claimcapture"
     },
     "web": {
       "output": "static",
@@ -81,6 +85,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "20211921-c735-4707-b56d-66186ff654d2"
+      }
+    },
+    "owner": "devwisecodes-team"
   }
 }

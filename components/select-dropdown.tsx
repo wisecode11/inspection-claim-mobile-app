@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -30,10 +31,20 @@ type MultiProps = {
 
 type Props = SingleProps | MultiProps;
 
+/**
+ * Fabric-safe dropdown: Modal is mounted only while open, and closed before unmount
+ * to avoid Android "Unable to find viewState for tag" crashes.
+ */
 export function SelectDropdown(props: Props) {
   const { label, options, placeholder = 'Select…' } = props;
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    return () => {
+      setOpen(false);
+    };
+  }, []);
 
   const summary = useMemo(() => {
     if (props.multi) {
@@ -46,6 +57,8 @@ export function SelectDropdown(props: Props) {
 
   const hasValue = props.multi ? props.selected.length > 0 : Boolean(props.selected);
 
+  const close = () => setOpen(false);
+
   const toggleOption = (option: string) => {
     if (props.multi) {
       const next = props.selected.includes(option)
@@ -55,14 +68,14 @@ export function SelectDropdown(props: Props) {
       return;
     }
     props.onChange(option === props.selected ? '' : option);
-    setOpen(false);
+    close();
   };
 
   const isActive = (option: string) =>
     props.multi ? props.selected.includes(option) : props.selected === option;
 
   return (
-    <View style={styles.wrap}>
+    <View style={styles.wrap} collapsable={false}>
       <Text style={styles.label}>{label}</Text>
       <Pressable
         accessibilityRole="button"
@@ -91,44 +104,50 @@ export function SelectDropdown(props: Props) {
         </View>
       ) : null}
 
-      <Modal
-        visible={open}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setOpen(false)}
-      >
-        <View style={styles.modalRoot}>
-          <Pressable style={styles.backdrop} onPress={() => setOpen(false)} />
-          <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>{label}</Text>
-              <Pressable hitSlop={10} onPress={() => setOpen(false)} style={styles.doneBtn}>
-                <Text style={styles.doneText}>{props.multi ? 'Done' : 'Close'}</Text>
-              </Pressable>
+      {open ? (
+        <Modal
+          visible
+          transparent
+          animationType={Platform.OS === 'android' ? 'fade' : 'slide'}
+          statusBarTranslucent
+          hardwareAccelerated
+          onRequestClose={close}
+        >
+          <View style={styles.modalRoot} collapsable={false}>
+            <Pressable style={styles.backdrop} onPress={close} />
+            <View
+              style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+              collapsable={false}
+            >
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>{label}</Text>
+                <Pressable hitSlop={10} onPress={close} style={styles.doneBtn}>
+                  <Text style={styles.doneText}>{props.multi ? 'Done' : 'Close'}</Text>
+                </Pressable>
+              </View>
+              {props.multi ? <Text style={styles.hint}>Tap to select one or more</Text> : null}
+              <FlatList
+                data={options}
+                keyExtractor={(item) => item}
+                keyboardShouldPersistTaps="handled"
+                removeClippedSubviews={false}
+                renderItem={({ item }) => {
+                  const active = isActive(item);
+                  return (
+                    <Pressable
+                      style={[styles.option, active && styles.optionOn]}
+                      onPress={() => toggleOption(item)}
+                    >
+                      <Text style={[styles.optionText, active && styles.optionTextOn]}>{item}</Text>
+                      {active ? <Ionicons color="#FFFFFF" name="checkmark" size={18} /> : null}
+                    </Pressable>
+                  );
+                }}
+              />
             </View>
-            {props.multi ? (
-              <Text style={styles.hint}>Tap to select one or more</Text>
-            ) : null}
-            <FlatList
-              data={options}
-              keyExtractor={(item) => item}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => {
-                const active = isActive(item);
-                return (
-                  <Pressable
-                    style={[styles.option, active && styles.optionOn]}
-                    onPress={() => toggleOption(item)}
-                  >
-                    <Text style={[styles.optionText, active && styles.optionTextOn]}>{item}</Text>
-                    {active ? <Ionicons color="#FFFFFF" name="checkmark" size={18} /> : null}
-                  </Pressable>
-                );
-              }}
-            />
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      ) : null}
     </View>
   );
 }
