@@ -234,10 +234,19 @@ function buildReportHtml(
   embedded: Map<string, string>,
   language?: ReportLanguagePackage | null
 ) {
+  const bySection = new Map<string, PhotoItem[]>();
+  const reportPhotos = data.photos.filter((photo) => photo.includeInReport !== false);
+  for (const photo of reportPhotos) {
+    const section = routePhotoToSection(photo);
+    const list = bySection.get(section) ?? [];
+    list.push(photo);
+    bySection.set(section, list);
+  }
+
   const cover =
-    data.photos.find((photo) => photo.isCover) ||
-    data.photos.find((photo) => photo.stepId === 'elevations' && photo.label === 'Front') ||
-    data.photos[0];
+    reportPhotos.find((photo) => photo.isCover) ||
+    reportPhotos.find((photo) => photo.stepId === 'elevations' && photo.label === 'Front') ||
+    reportPhotos[0];
   const coverSrc = cover ? embedded.get(cover.id) : null;
 
   const inspector = data.inspectorName || 'Inspector';
@@ -245,14 +254,6 @@ function buildReportHtml(
   const roofAge = data.estimatedRoofAge || 'unknown age';
   const inspectionDate = data.date || '—';
   const dateOfLoss = data.dateOfLoss ? String(data.dateOfLoss).slice(0, 10) : '—';
-
-  const bySection = new Map<string, PhotoItem[]>();
-  for (const photo of data.photos) {
-    const section = routePhotoToSection(photo);
-    const list = bySection.get(section) ?? [];
-    list.push(photo);
-    bySection.set(section, list);
-  }
 
   const photoSections = EVIDENCE_SECTION_ORDER.filter((id) => id !== 'build-notes')
     .map((sectionId) => {
@@ -468,7 +469,8 @@ export async function createInspectionPdf(
   data: InspectionData,
   language?: ReportLanguagePackage | null
 ) {
-  const embedded = await embedPhotoMap(data.photos);
+  const reportPhotos = data.photos.filter((photo) => photo.includeInReport !== false);
+  const embedded = await embedPhotoMap(reportPhotos);
   const html = buildReportHtml(data, embedded, language);
 
   try {

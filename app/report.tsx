@@ -39,6 +39,8 @@ export default function ReportScreen() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
+  const includedPhotos = data.photos.filter((photo) => photo.includeInReport !== false).length;
+
   useEffect(() => {
     let active = true;
 
@@ -96,7 +98,7 @@ export default function ReportScreen() {
     return () => {
       active = false;
     };
-    // Generate once when this screen opens.
+    // Final PDF is generated from the edited draft when this screen opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -177,21 +179,21 @@ export default function ReportScreen() {
         </View>
 
         <Text style={styles.title}>
-          {creating ? 'Building Evidence Package…' : 'Evidence Package Ready'}
+          {creating ? 'Building Final PDF…' : 'Final Evidence Package Ready'}
         </Text>
         <Text style={styles.subtitle}>
           {creating
-            ? 'Organizing photos and setup data into the final PDF.'
-            : 'Review the PDF, then send it to admin when you are online.'}
+            ? 'Applying your draft edits into the final PDF.'
+            : 'Open the PDF, or go back to edit the draft before sending.'}
         </Text>
 
         <View style={styles.reportCard}>
-          <Text style={styles.reportLabel}>EVIDENCE PACKAGE</Text>
+          <Text style={styles.reportLabel}>FINAL PDF</Text>
           <Text style={styles.customer}>{data.homeownerName || data.customer}</Text>
           <Text style={styles.address}>{data.address}</Text>
           <Text style={styles.meta}>
             {pdfUri
-              ? `${data.photos.length} photos · empty sections omitted`
+              ? `${includedPhotos} photos included · draft applied`
               : 'Preparing PDF...'}
           </Text>
         </View>
@@ -218,6 +220,14 @@ export default function ReportScreen() {
           onPress={() => void runAction('share')}
         >
           <Text style={styles.linkText}>Share Report</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.editDraft, (busy || sending || creating) && styles.disabled]}
+          disabled={busy || sending || creating}
+          onPress={() => router.replace('/report-draft')}
+        >
+          <Text style={styles.editDraftText}>Edit draft again</Text>
         </Pressable>
 
         <Pressable
@@ -286,11 +296,17 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#163A4A', fontWeight: '800' },
   link: { marginTop: 18 },
   linkText: { color: '#E17035', fontWeight: '800' },
+  editDraft: {
+    alignItems: 'center',
+    marginTop: 14,
+    padding: 10,
+  },
+  editDraftText: { color: '#163A4A', fontWeight: '700' },
   send: {
     alignItems: 'center',
     backgroundColor: '#163A4A',
     borderRadius: 12,
-    marginTop: 18,
+    marginTop: 10,
     padding: 16,
     width: '100%',
   },

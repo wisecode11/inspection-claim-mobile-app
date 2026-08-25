@@ -82,9 +82,15 @@ export function InspectionProvider({ children }: PropsWithChildren) {
         policyNumber: job.policyNumber || draft.policyNumber || '',
         phone: job.phone || draft.phone || '',
         email: job.email || draft.email || '',
-        photos: Array.isArray(draft.photos) ? draft.photos : [],
+        photos: Array.isArray(draft.photos)
+          ? draft.photos.map((photo) => ({
+              ...photo,
+              includeInReport: photo.includeInReport !== false,
+            }))
+          : [],
         completedSteps: Array.isArray(draft.completedSteps) ? draft.completedSteps : [],
         buildNotes: draft.buildNotes ?? emptyBuildNotes(),
+        reportNarrative: draft.reportNarrative || '',
       });
     });
   }, []);
@@ -116,6 +122,7 @@ export function InspectionProvider({ children }: PropsWithChildren) {
               notes: meta.notes,
               shotType: meta.shotType ?? 'standard',
               isCover: Boolean(meta.isCover) || (isFirstFront && index === 0),
+              includeInReport: true,
               createdAt: new Date().toISOString(),
             })),
           ];

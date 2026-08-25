@@ -436,8 +436,9 @@ export async function sendEvidenceToAdmin(params: {
   }
 
   let uploaded = 0;
-  for (let index = 0; index < data.photos.length; index += 1) {
-    const photo = data.photos[index];
+  const photosToUpload = data.photos.filter((photo) => photo.includeInReport !== false);
+  for (let index = 0; index < photosToUpload.length; index += 1) {
+    const photo = photosToUpload[index];
     try {
       await uploadJobPhoto(token, data.jobId, {
         clientUuid: photo.id,
@@ -461,6 +462,7 @@ export async function sendEvidenceToAdmin(params: {
     clientUuid: `inspection-${data.jobId}`,
     summary: {
       overallNotes: [
+        data.reportNarrative,
         data.buildNotes.texts.additionalBuildNotes,
         data.buildNotes.texts.specialConditions,
         data.buildNotes.texts.roofConstruction,
@@ -478,6 +480,7 @@ export async function sendEvidenceToAdmin(params: {
       claimNumber: data.claimNumber,
       policyNumber: data.policyNumber,
       dateOfLoss: data.dateOfLoss,
+      reportNarrative: data.reportNarrative,
     },
     pdfBase64,
     pdfFileName: `RoofCheck_${data.jobId}.pdf`,
@@ -487,6 +490,7 @@ export async function sendEvidenceToAdmin(params: {
       data.weatherSummary
         ? `Weather: ${data.weatherSummary.badgeTitle} — ${data.weatherSummary.weather}`
         : '',
+      data.reportNarrative || '',
       data.buildNotes.texts.additionalBuildNotes || '',
     ]
       .filter(Boolean)

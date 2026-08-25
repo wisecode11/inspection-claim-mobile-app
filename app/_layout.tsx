@@ -71,6 +71,7 @@ function AppShell() {
         <Stack.Screen name="capture/index" options={{ headerShown: false, title: 'Field Capture' }} />
         <Stack.Screen name="capture/[step]" options={{ headerShown: false, title: 'Field Capture' }} />
         <Stack.Screen name="review" options={{ title: 'Review & Quality Check' }} />
+        <Stack.Screen name="report-draft" options={{ title: 'Editable PDF Draft' }} />
         <Stack.Screen name="report" options={{ title: 'Evidence Package' }} />
         <Stack.Screen name="inspection" options={{ title: 'Inspection Overview' }} />
         <Stack.Screen name="roof-inspection" options={{ title: 'Roof Inspection' }} />

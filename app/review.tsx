@@ -80,7 +80,7 @@ export default function ReviewScreen() {
         )}
 
         <View style={{ marginTop: 24 }}>
-          <PrimaryButton title="Generate Evidence Package" onPress={() => router.push('/report')} />
+          <PrimaryButton title="Edit PDF draft" onPress={() => router.push('/report-draft')} />
         </View>
       </ScrollView>
     </Screen>

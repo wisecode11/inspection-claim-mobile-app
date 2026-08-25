@@ -254,6 +254,7 @@ export type PhotoItem = {
   notes?: string;
   shotType?: 'overview' | 'close-up' | 'standard';
   isCover?: boolean;
+  includeInReport?: boolean;
   annotations?: PhotoAnnotation[];
   createdAt: string;
 };

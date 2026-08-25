@@ -36,6 +36,9 @@ export type InspectionData = {
   weatherStatus: string;
   weatherMatchStatus: string | null;
   weatherSummary: WeatherSummary | null;
+
+  /** Editable draft narrative that appears in the Evidence Package PDF. */
+  reportNarrative: string;
 };
 
 export type JobSeed = Pick<
@@ -96,6 +99,7 @@ export function createInitialInspection(overrides: Partial<InspectionData> = {})
     weatherStatus: '',
     weatherMatchStatus: null,
     weatherSummary: null,
+    reportNarrative: '',
     ...overrides,
   };
 }
