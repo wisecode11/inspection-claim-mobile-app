@@ -16,11 +16,13 @@ import type { InspectionData } from '@/lib/inspection-types';
 import {
   codesAndStandardsHtml,
   damageDefinitionsHtml,
+  disclaimerHtml,
   existingConditionsHtml,
   inspectorDeclarationHtml,
   investigationProcessHtml,
   photographicEvidenceIntroHtml,
   summaryOfFindingsHtml,
+  type ReportLanguagePackage,
 } from '@/lib/report-templates';
 
 const CLIENT_SECTION_TITLES: Partial<Record<EvidenceSectionId, string>> = {
@@ -227,7 +229,11 @@ function renderBuildNotes(
     </div>`;
 }
 
-function buildReportHtml(data: InspectionData, embedded: Map<string, string>) {
+function buildReportHtml(
+  data: InspectionData,
+  embedded: Map<string, string>,
+  language?: ReportLanguagePackage | null
+) {
   const cover =
     data.photos.find((photo) => photo.isCover) ||
     data.photos.find((photo) => photo.stepId === 'elevations' && photo.label === 'Front') ||
@@ -401,17 +407,17 @@ function buildReportHtml(data: InspectionData, embedded: Map<string, string>) {
 
     <div class="block">
       <h2>Summary of Findings</h2>
-      ${summaryOfFindingsHtml()}
+      ${summaryOfFindingsHtml(language)}
     </div>
 
     <div class="block">
       <h2>Investigation Process</h2>
-      ${investigationProcessHtml()}
+      ${investigationProcessHtml(language)}
     </div>
 
     <div class="section page-break">
       <h2>Damage Definitions and Assessment Criteria</h2>
-      ${damageDefinitionsHtml()}
+      ${damageDefinitionsHtml(language)}
     </div>
 
     ${renderWeather(data)}
@@ -429,13 +435,15 @@ function buildReportHtml(data: InspectionData, embedded: Map<string, string>) {
 
     <div class="section page-break">
       <h2>Existing Conditions</h2>
-      ${existingConditionsHtml(escapeHtml(roofAge))}
+      ${existingConditionsHtml(roofAge, language)}
     </div>
 
     <div class="section page-break">
       <h2>Codes and Standards</h2>
-      ${codesAndStandardsHtml()}
+      ${codesAndStandardsHtml(language)}
     </div>
+
+    ${disclaimerHtml(language)}
 
     <div class="section page-break">
       <h2>Inspector’s Declaration</h2>
@@ -456,9 +464,12 @@ function reportFileName(customer: string) {
   return `ClaimCapture_${safeName}_${Date.now()}.pdf`;
 }
 
-export async function createInspectionPdf(data: InspectionData) {
+export async function createInspectionPdf(
+  data: InspectionData,
+  language?: ReportLanguagePackage | null
+) {
   const embedded = await embedPhotoMap(data.photos);
-  const html = buildReportHtml(data, embedded);
+  const html = buildReportHtml(data, embedded, language);
 
   try {
     const file = await withTimeout(
@@ -472,7 +483,7 @@ export async function createInspectionPdf(data: InspectionData) {
     await FileSystem.copyAsync({ from: file.uri, to: destination });
     return destination;
   } catch {
-    const fallbackHtml = buildReportHtml(data, new Map());
+    const fallbackHtml = buildReportHtml(data, new Map(), language);
     const file = await withTimeout(
       Print.printToFileAsync({ html: fallbackHtml, base64: false }),
       20000,

@@ -14,12 +14,14 @@ import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
 import {
   fetchJob,
+  fetchReportLanguage,
   fetchWeatherVerification,
   jobDateOfLoss,
   sendEvidenceToAdmin,
   verifyWeatherForJob,
 } from '@/lib/api';
 import { loadLastPdf, saveLastPdf } from '@/lib/last-pdf';
+import type { ReportLanguagePackage } from '@/lib/report-templates';
 import {
   createInspectionPdf,
   downloadInspectionPdf,
@@ -68,7 +70,12 @@ export default function ReportScreen() {
           }
         }
 
-        const uri = await createInspectionPdf(snapshot);
+        let language: ReportLanguagePackage | null = null;
+        if (token) {
+          language = await fetchReportLanguage(token).catch(() => null);
+        }
+
+        const uri = await createInspectionPdf(snapshot, language);
         if (!active) return;
         setPdfUri(uri);
         if (data.jobId) {

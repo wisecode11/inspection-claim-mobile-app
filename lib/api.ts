@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { loadSession, saveSession } from '@/lib/auth-storage';
 import type { InspectionData } from '@/lib/inspection-types';
 import { readPhotoBase64 } from '@/lib/photo-storage';
+import type { ReportLanguagePackage } from '@/lib/report-templates';
 
 const API_PORT = 8000;
 
@@ -360,6 +361,14 @@ export async function verifyWeatherForJob(
   }
 
   return payload.data.weather;
+}
+
+export async function fetchReportLanguage(token: string): Promise<ReportLanguagePackage> {
+  const payload = await requestJson<{ data?: { reportLanguage?: ReportLanguagePackage } }>(
+    '/api/templates/report-language',
+    { method: 'GET', token }
+  );
+  return payload.data?.reportLanguage || {};
 }
 
 export async function uploadJobPhoto(
