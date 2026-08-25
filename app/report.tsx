@@ -130,13 +130,16 @@ export default function ReportScreen() {
         pdfUri,
       });
       setSent(true);
+      if (result.job?.status) {
+        update({ jobStatus: result.job.status });
+      }
       Alert.alert(
         'Sent to Admin',
         result.alreadySubmitted
           ? 'Package updated on the server for admin review.'
           : `Evidence package submitted${
               result.photosUploaded != null ? ` (${result.photosUploaded} photos)` : ''
-            }.`
+            }. Admin can review it under Reports.`
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Please try again.';
