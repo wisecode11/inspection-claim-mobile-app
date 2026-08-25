@@ -10,7 +10,15 @@ import {
 } from 'react-native';
 
 import { Screen } from '@/components/inspection-ui';
+import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
+import {
+  fetchJob,
+  fetchWeatherVerification,
+  jobDateOfLoss,
+  sendEvidenceToAdmin,
+  verifyWeatherForJob,
+} from '@/lib/api';
 import { loadLastPdf, saveLastPdf } from '@/lib/last-pdf';
 import {
   createInspectionPdf,
@@ -21,24 +29,52 @@ import {
 
 export default function ReportScreen() {
   const router = useRouter();
-  const { data, clearInspectionDraft } = useInspection();
+  const { token } = useAuth();
+  const { data, update, clearInspectionDraft } = useInspection();
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     (async () => {
       try {
-        const uri = await createInspectionPdf(data);
+        let snapshot = data;
+
+        if (token && data.jobId) {
+          try {
+            const job = await fetchJob(token, data.jobId);
+            const weather =
+              (await fetchWeatherVerification(token, data.jobId).catch(() => null)) ||
+              (await verifyWeatherForJob(token, data.jobId).catch(() => null));
+
+            const enriched = {
+              ...data,
+              claimNumber: job.claim?.claimNumber || data.claimNumber,
+              policyNumber: job.claim?.policyNumber || data.policyNumber,
+              dateOfLoss: jobDateOfLoss(job) || data.dateOfLoss,
+              jobStatus: job.status || data.jobStatus,
+              weatherSummary: weather?.summary || data.weatherSummary,
+              weatherMatchStatus: weather?.matchStatus || data.weatherMatchStatus,
+              weatherStatus: weather?.summary?.badgeTitle || data.weatherStatus,
+            };
+            update(enriched);
+            snapshot = enriched;
+          } catch {
+            // Offline — generate from local draft.
+          }
+        }
+
+        const uri = await createInspectionPdf(snapshot);
         if (!active) return;
         setPdfUri(uri);
         if (data.jobId) {
           await saveLastPdf(data.jobId, uri);
         }
       } catch {
-        // If generation fails after an Android remount, try the last saved PDF.
         const existing = data.jobId ? await loadLastPdf(data.jobId) : null;
         if (active && existing) {
           setPdfUri(existing);
@@ -53,12 +89,12 @@ export default function ReportScreen() {
     return () => {
       active = false;
     };
-    // Generate once when this screen opens, using the current inspection snapshot.
+    // Generate once when this screen opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const runAction = async (action: 'view' | 'download' | 'share') => {
-    if (!pdfUri || busy) return;
+    if (!pdfUri || busy || sending) return;
 
     try {
       setBusy(true);
@@ -80,6 +116,33 @@ export default function ReportScreen() {
       Alert.alert('Action failed', message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const sendToAdmin = async () => {
+    if (!pdfUri || !token || sending || sent) return;
+
+    try {
+      setSending(true);
+      const result = await sendEvidenceToAdmin({
+        token,
+        data,
+        pdfUri,
+      });
+      setSent(true);
+      Alert.alert(
+        'Sent to Admin',
+        result.alreadySubmitted
+          ? 'Package updated on the server for admin review.'
+          : `Evidence package submitted${
+              result.photosUploaded != null ? ` (${result.photosUploaded} photos)` : ''
+            }.`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Please try again.';
+      Alert.alert('Send failed', message);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -109,7 +172,7 @@ export default function ReportScreen() {
         <Text style={styles.subtitle}>
           {creating
             ? 'Organizing photos and setup data into the final PDF.'
-            : 'Open the PDF in your device viewer, or download / share it.'}
+            : 'Review the PDF, then send it to admin when you are online.'}
         </Text>
 
         <View style={styles.reportCard}>
@@ -124,27 +187,44 @@ export default function ReportScreen() {
         </View>
 
         <Pressable
-          style={[styles.primary, (!pdfUri || busy) && styles.disabled]}
-          disabled={!pdfUri || busy}
+          style={[styles.primary, (!pdfUri || busy || sending) && styles.disabled]}
+          disabled={!pdfUri || busy || sending}
           onPress={() => void runAction('view')}
         >
           <Text style={styles.primaryText}>{busy ? 'Please wait...' : 'Open PDF'}</Text>
         </Pressable>
 
         <Pressable
-          style={[styles.secondary, (!pdfUri || busy) && styles.disabled]}
-          disabled={!pdfUri || busy}
+          style={[styles.secondary, (!pdfUri || busy || sending) && styles.disabled]}
+          disabled={!pdfUri || busy || sending}
           onPress={() => void runAction('download')}
         >
           <Text style={styles.secondaryText}>Download PDF</Text>
         </Pressable>
 
         <Pressable
-          style={[styles.link, (!pdfUri || busy) && styles.disabled]}
-          disabled={!pdfUri || busy}
+          style={[styles.link, (!pdfUri || busy || sending) && styles.disabled]}
+          disabled={!pdfUri || busy || sending}
           onPress={() => void runAction('share')}
         >
           <Text style={styles.linkText}>Share Report</Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.send,
+            (!pdfUri || !token || sending || sent) && styles.disabled,
+          ]}
+          disabled={!pdfUri || !token || sending || sent}
+          onPress={() => void sendToAdmin()}
+        >
+          {sending ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.sendText}>
+              {sent ? 'Sent to Admin ✓' : 'Send to Admin'}
+            </Text>
+          )}
         </Pressable>
 
         <Pressable style={styles.done} onPress={() => void backToJobs()}>
@@ -196,6 +276,15 @@ const styles = StyleSheet.create({
   secondaryText: { color: '#163A4A', fontWeight: '800' },
   link: { marginTop: 18 },
   linkText: { color: '#E17035', fontWeight: '800' },
+  send: {
+    alignItems: 'center',
+    backgroundColor: '#163A4A',
+    borderRadius: 12,
+    marginTop: 18,
+    padding: 16,
+    width: '100%',
+  },
+  sendText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
   done: { marginTop: 'auto', padding: 15 },
   doneText: { color: '#70818A', fontWeight: '700' },
   disabled: { opacity: 0.5 },

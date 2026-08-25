@@ -12,6 +12,7 @@ import {
   InspectionData,
   JobSeed,
 } from '@/lib/inspection-types';
+import { persistPhotoUris } from '@/lib/photo-storage';
 
 export type { InspectionData, JobSeed } from '@/lib/inspection-types';
 
@@ -19,7 +20,10 @@ type InspectionContextValue = {
   data: InspectionData;
   update: (changes: Partial<InspectionData>) => void;
   resetForJob: (job: JobSeed) => void;
-  addPhotos: (uris: string[], meta: Omit<PhotoItem, 'id' | 'uri' | 'createdAt' | 'damageTags'> & { damageTags?: string[] }) => void;
+  addPhotos: (
+    uris: string[],
+    meta: Omit<PhotoItem, 'id' | 'uri' | 'createdAt' | 'damageTags'> & { damageTags?: string[] }
+  ) => void;
   updatePhoto: (id: string, changes: Partial<PhotoItem>) => void;
   removePhoto: (id: string) => void;
   reorderPhoto: (id: string, direction: 'up' | 'down') => void;
@@ -90,36 +94,39 @@ export function InspectionProvider({ children }: PropsWithChildren) {
       uris: string[],
       meta: Omit<PhotoItem, 'id' | 'uri' | 'createdAt' | 'damageTags'> & { damageTags?: string[] }
     ) => {
-      setData((current) => {
-        const isFirstFront =
-          meta.stepId === 'elevations' &&
-          meta.label === 'Front' &&
-          !current.photos.some((photo) => photo.isCover);
+      void (async () => {
+        const durableUris = await persistPhotoUris(uris);
+        setData((current) => {
+          const isFirstFront =
+            meta.stepId === 'elevations' &&
+            meta.label === 'Front' &&
+            !current.photos.some((photo) => photo.isCover);
 
-        const nextPhotos = [
-          ...current.photos,
-          ...uris.map((uri, index) => ({
-            id: createPhotoId(),
-            uri,
-            stepId: meta.stepId,
-            label: meta.label,
-            component: meta.component,
-            elevation: meta.elevation,
-            roofDirection: meta.roofDirection,
-            damageTags: meta.damageTags ?? [],
-            notes: meta.notes,
-            shotType: meta.shotType ?? 'standard',
-            isCover: Boolean(meta.isCover) || (isFirstFront && index === 0),
-            createdAt: new Date().toISOString(),
-          })),
-        ];
+          const nextPhotos = [
+            ...current.photos,
+            ...durableUris.map((uri, index) => ({
+              id: createPhotoId(),
+              uri,
+              stepId: meta.stepId,
+              label: meta.label,
+              component: meta.component,
+              elevation: meta.elevation,
+              roofDirection: meta.roofDirection,
+              damageTags: meta.damageTags ?? [],
+              notes: meta.notes,
+              shotType: meta.shotType ?? 'standard',
+              isCover: Boolean(meta.isCover) || (isFirstFront && index === 0),
+              createdAt: new Date().toISOString(),
+            })),
+          ];
 
-        return {
-          ...current,
-          photos: nextPhotos,
-          lastRoofDirection: meta.roofDirection || current.lastRoofDirection,
-        };
-      });
+          return {
+            ...current,
+            photos: nextPhotos,
+            lastRoofDirection: meta.roofDirection || current.lastRoofDirection,
+          };
+        });
+      })();
     },
     []
   );

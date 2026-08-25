@@ -68,7 +68,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
 async function photoToDataUri(uri: string) {
   const resized = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: 1000 } }],
+    [{ resize: { width: 720 } }],
     {
       compress: 0.62,
       format: ImageManipulator.SaveFormat.JPEG,
@@ -315,11 +315,16 @@ function buildReportHtml(data: InspectionData, embedded: Map<string, string>) {
     .info-label { color: #444; min-width: 38%; }
     .info-value { font-weight: 700; text-align: right; max-width: 60%; }
     .cover {
-      width: 100%;
-      max-height: 320px;
-      object-fit: cover;
-      margin: 0 0 16px;
+      display: block;
+      width: auto;
+      max-width: 48%;
+      max-height: 280px;
+      height: auto;
+      object-fit: contain;
+      object-position: left top;
+      margin: 0 0 16px 0;
       border: 1px solid #ccc;
+      background: #f3f3f3;
     }
     .section-banner {
       font-family: Helvetica, Arial, sans-serif;
@@ -335,19 +340,29 @@ function buildReportHtml(data: InspectionData, embedded: Map<string, string>) {
       font-size: 11px;
       margin: 0 0 12px;
     }
-    .photo-block { margin: 0 0 18px; page-break-inside: avoid; }
+    .photo-block {
+      margin: 0 0 14px;
+      page-break-inside: avoid;
+      text-align: left;
+    }
     .photo-block img {
-      width: 100%;
-      height: auto;
       display: block;
+      width: auto;
+      height: auto;
+      max-width: 48%;
+      max-height: 280px;
+      object-fit: contain;
+      object-position: left top;
       border: 1px solid #ccc;
       background: #f3f3f3;
+      margin: 0;
     }
     .caption {
       font-family: Helvetica, Arial, sans-serif;
       font-size: 10.5px;
       color: #444;
       margin-top: 5px;
+      text-align: left;
     }
     .footer {
       margin-top: 28px;

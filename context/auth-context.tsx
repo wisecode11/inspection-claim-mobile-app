@@ -1,12 +1,20 @@
-import { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
+import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 
-import { AuthUser, loginWithApi } from '@/lib/api';
-import { clearSession, loadSession, saveSession } from '@/lib/auth-storage';
+import { AuthCompany, AuthUser, loginWithApi } from '@/lib/api';
+import { clearCachedJobs } from '@/lib/jobs-storage';
+import {
+  clearSession,
+  companyDisplayName,
+  loadSession,
+  saveSession,
+} from '@/lib/auth-storage';
 
 type AuthContextValue = {
   isReady: boolean;
   token: string | null;
   user: AuthUser | null;
+  company: AuthCompany | null;
+  companyName: string;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -17,12 +25,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [isReady, setIsReady] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [company, setCompany] = useState<AuthCompany | null>(null);
 
   useEffect(() => {
     const restore = async () => {
       const session = await loadSession();
       setToken(session.token);
       setUser(session.user);
+      setCompany(session.company);
       setIsReady(true);
     };
 
@@ -31,22 +41,34 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const login = async (email: string, password: string) => {
     const data = await loginWithApi(email, password);
-    await saveSession({ token: data.token, user: data.user });
+    await saveSession({
+      token: data.token,
+      refreshToken: data.refreshToken,
+      user: data.user,
+      company: data.company,
+    });
     setToken(data.token);
     setUser(data.user);
+    setCompany(data.company);
   };
 
   const logout = async () => {
     try {
       await clearSession();
+      await clearCachedJobs();
     } finally {
       setToken(null);
       setUser(null);
+      setCompany(null);
     }
   };
 
+  const companyName = useMemo(() => companyDisplayName(company), [company]);
+
   return (
-    <AuthContext.Provider value={{ isReady, token, user, login, logout }}>
+    <AuthContext.Provider
+      value={{ isReady, token, user, company, companyName, login, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

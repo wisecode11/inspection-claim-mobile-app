@@ -16,6 +16,7 @@ import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
 import {
+  acceptJob,
   fetchJobs,
   InspectionJob,
   jobAddressText,
@@ -25,6 +26,7 @@ import {
   jobDateLabel,
   jobStatusLabel,
 } from '@/lib/api';
+import { loadCachedJobs, saveCachedJobs } from '@/lib/jobs-storage';
 
 function statusTone(status: string) {
   const key = status.toLowerCase();
@@ -63,13 +65,26 @@ export default function JobsScreen() {
       setRefreshing(true);
     } else {
       setLoading(true);
+      const cached = await loadCachedJobs();
+      if (cached.length) {
+        setJobs(cached);
+        setLoading(false);
+      }
     }
     setError('');
 
     try {
-      setJobs(await fetchJobs(token));
+      const next = await fetchJobs(token);
+      setJobs(next);
+      await saveCachedJobs(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load jobs');
+      const cached = await loadCachedJobs();
+      if (cached.length) {
+        setJobs(cached);
+        setError('Offline — showing saved jobs');
+      } else {
+        setError(err instanceof Error ? err.message : 'Could not load jobs');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -195,24 +210,44 @@ export default function JobsScreen() {
                 <Pressable
                   style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
                   onPress={() => {
-                    const coords = jobCoordinates(item);
-                    resetForJob({
-                      jobId: item.id,
-                      customer,
-                      address: item.geocode?.formattedAddress?.trim() || address,
-                      date,
-                      jobStatus: status,
-                      latitude: coords?.latitude ?? null,
-                      longitude: coords?.longitude ?? null,
-                      locationConfirmed: Boolean(item.geocode?.confirmed),
-                      geocodeError: item.geocode?.error || '',
-                      dateOfLoss: jobDateOfLoss(item),
-                      claimNumber: item.claim?.claimNumber || '',
-                      policyNumber: item.claim?.policyNumber || '',
-                      phone: item.customer?.phone || '',
-                      email: item.customer?.email || '',
-                    });
-                    router.push('/property');
+                    void (async () => {
+                      let status = item.status;
+                      if (token) {
+                        try {
+                          const key = item.status.toLowerCase();
+                          if (key === 'assigned' || key === 'reopened') {
+                            const started = await acceptJob(token, item.id);
+                            status = started.status;
+                            setJobs((current) =>
+                              current.map((job) =>
+                                job.id === item.id ? { ...job, status: started.status } : job
+                              )
+                            );
+                          }
+                        } catch {
+                          // Offline / already started — continue with local draft.
+                        }
+                      }
+
+                      const coords = jobCoordinates(item);
+                      resetForJob({
+                        jobId: item.id,
+                        customer,
+                        address: item.geocode?.formattedAddress?.trim() || address,
+                        date,
+                        jobStatus: status,
+                        latitude: coords?.latitude ?? null,
+                        longitude: coords?.longitude ?? null,
+                        locationConfirmed: Boolean(item.geocode?.confirmed),
+                        geocodeError: item.geocode?.error || '',
+                        dateOfLoss: jobDateOfLoss(item),
+                        claimNumber: item.claim?.claimNumber || '',
+                        policyNumber: item.claim?.policyNumber || '',
+                        phone: item.customer?.phone || '',
+                        email: item.customer?.email || '',
+                      });
+                      router.push('/property');
+                    })();
                   }}
                 >
                   <Text style={styles.buttonText}>Start Inspection</Text>

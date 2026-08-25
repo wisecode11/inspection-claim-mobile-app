@@ -28,7 +28,7 @@ function InfoRow({ label, value, last = false }: { label: string; value: string;
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const { user, logout } = useAuth();
+  const { user, companyName, logout } = useAuth();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [jobAlerts, setJobAlerts] = useState(true);
@@ -62,7 +62,9 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.pageTitle}>Profile</Text>
-        <Text style={styles.pageSub}>Inspector account and preferences</Text>
+        <Text style={styles.pageSub}>
+          {companyName ? `${companyName} · inspector account` : 'Inspector account and preferences'}
+        </Text>
 
         <View style={styles.hero}>
           <View style={styles.avatar}>
@@ -71,8 +73,14 @@ export default function ProfileScreen() {
           <View style={styles.heroCopy}>
             <Text style={styles.name}>{fullName}</Text>
             <Text style={styles.role}>{user?.role || 'Inspector'}</Text>
+            {companyName ? <Text style={styles.company}>{companyName}</Text> : null}
             <Text style={styles.email}>{user?.email || '—'}</Text>
           </View>
+        </View>
+
+        <Text style={styles.sectionLabel}>Company</Text>
+        <View style={styles.card}>
+          <InfoRow label="Company name" value={companyName} last />
         </View>
 
         <Text style={styles.sectionLabel}>Inspector information</Text>
@@ -191,6 +199,7 @@ const styles = StyleSheet.create({
   heroCopy: { flex: 1 },
   name: { color: Brand.surface, fontSize: 20, fontWeight: '800' },
   role: { color: '#C9D9DF', fontSize: 13, fontWeight: '600', marginTop: 2, textTransform: 'capitalize' },
+  company: { color: '#FFD7C2', fontSize: 13, fontWeight: '700', marginTop: 4 },
   email: { color: '#A9BDC5', fontSize: 13, marginTop: 4 },
   sectionLabel: {
     color: Brand.muted,
