@@ -158,7 +158,27 @@ function renderFindingsIndex(bySection: Map<string, PhotoItem[]>) {
   return `<ul class="bullets">${items.join('')}</ul>`;
 }
 
-function renderWeather(data: InspectionData) {
+function renderPropertyMaps(maps?: { roadmap: string | null; satellite: string | null } | null) {
+  if (!maps?.roadmap && !maps?.satellite) return '';
+
+  const cell = (src: string, alt: string, extraClass = '') => `
+    <div class="map-cell${extraClass ? ` ${extraClass}` : ''}">
+      <img class="map-shot" src="${src}" alt="${alt}" />
+      <div class="map-pin" aria-hidden="true"></div>
+    </div>`;
+
+  return `
+    <h3>Hail Trace weather report</h3>
+    <div class="map-row">
+      ${maps.roadmap ? cell(maps.roadmap, 'Property roadmap') : ''}
+      ${maps.satellite ? cell(maps.satellite, 'Property satellite', 'map-cell-second') : ''}
+    </div>`;
+}
+
+function renderWeather(
+  data: InspectionData,
+  maps?: { roadmap: string | null; satellite: string | null } | null
+) {
   const weather = data.weatherSummary;
   if (!weather) {
     return `
@@ -168,6 +188,8 @@ function renderWeather(data: InspectionData) {
           Weather verification was not available for this inspection at the time of report generation.
           Photographic and field findings below remain valid independently of third-party weather confirmation.
         </p>
+        <h3>Overall Weather History</h3>
+        ${renderPropertyMaps(maps)}
       </div>`;
   }
 
@@ -195,6 +217,7 @@ function renderWeather(data: InspectionData) {
         the storm match used to support claim evaluation for this property. Full provider report pages
         (when supplied by the weather partner) should be retained with the claim file alongside this package.
       </p>
+      ${renderPropertyMaps(maps)}
     </div>`;
 }
 
@@ -232,7 +255,8 @@ function renderBuildNotes(
 function buildReportHtml(
   data: InspectionData,
   embedded: Map<string, string>,
-  language?: ReportLanguagePackage | null
+  language?: ReportLanguagePackage | null,
+  maps?: { roadmap: string | null; satellite: string | null } | null
 ) {
   const bySection = new Map<string, PhotoItem[]>();
   const reportPhotos = data.photos.filter((photo) => photo.includeInReport !== false);
@@ -347,17 +371,58 @@ function buildReportHtml(
       font-size: 11px;
       margin: 0 0 12px;
     }
+    .map-row {
+      display: flex;
+      justify-content: flex-start;
+      gap: 18px;
+      margin: 8px 0 4px;
+      page-break-inside: avoid;
+    }
+    .map-cell {
+      position: relative;
+      width: 42%;
+      max-width: 42%;
+    }
+    .map-cell-second {
+      margin-left: 34px;
+    }
+    .map-shot {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #f3f3f3;
+      object-fit: cover;
+    }
+    .map-pin {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 16px;
+      height: 16px;
+      margin-left: -8px;
+      margin-top: -20px;
+      background: #e74c3c;
+      border: 2px solid #fff;
+      border-radius: 50% 50% 50% 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+      transform: rotate(-45deg);
+    }
     .photo-block {
       margin: 0 0 14px;
       page-break-inside: avoid;
       text-align: left;
     }
+    .photo-block + .photo-block {
+      margin-top: 70px;
+    }
     .photo-block img {
       display: block;
       width: auto;
       height: auto;
-      max-width: 48%;
-      max-height: 280px;
+      max-width: 55%;
+      max-height: 310px;
       object-fit: contain;
       object-position: left top;
       border: 1px solid #ccc;
@@ -421,7 +486,7 @@ function buildReportHtml(
       ${damageDefinitionsHtml(language)}
     </div>
 
-    ${renderWeather(data)}
+    ${renderWeather(data, maps)}
 
     <div class="section page-break">
       <h2>Photographic Evidence and Supporting Documentation</h2>
@@ -467,11 +532,12 @@ function reportFileName(customer: string) {
 
 export async function createInspectionPdf(
   data: InspectionData,
-  language?: ReportLanguagePackage | null
+  language?: ReportLanguagePackage | null,
+  maps?: { roadmap: string | null; satellite: string | null } | null
 ) {
   const reportPhotos = data.photos.filter((photo) => photo.includeInReport !== false);
   const embedded = await embedPhotoMap(reportPhotos);
-  const html = buildReportHtml(data, embedded, language);
+  const html = buildReportHtml(data, embedded, language, maps);
 
   try {
     const file = await withTimeout(
@@ -485,7 +551,7 @@ export async function createInspectionPdf(
     await FileSystem.copyAsync({ from: file.uri, to: destination });
     return destination;
   } catch {
-    const fallbackHtml = buildReportHtml(data, new Map(), language);
+    const fallbackHtml = buildReportHtml(data, new Map(), language, maps);
     const file = await withTimeout(
       Print.printToFileAsync({ html: fallbackHtml, base64: false }),
       20000,

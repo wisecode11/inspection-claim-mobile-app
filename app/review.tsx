@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { InfoRow, PrimaryButton, Screen, ui } from '@/components/inspection-ui';
+import { InfoRow, OutlineButton, PrimaryButton, Screen, ui } from '@/components/inspection-ui';
 import { useInspection } from '@/context/inspection-context';
 import { CAPTURE_STEPS } from '@/lib/capture-steps';
 import { findInspectionGaps, photosForStep } from '@/lib/review-gaps';
@@ -80,7 +80,10 @@ export default function ReviewScreen() {
         )}
 
         <View style={{ marginTop: 24 }}>
-          <PrimaryButton title="Edit PDF draft" onPress={() => router.push('/report-draft')} />
+          <PrimaryButton title="Generate Final PDF" onPress={() => router.push('/report')} />
+          <View style={{ marginTop: 10 }}>
+            <OutlineButton title="Edit PDF draft" onPress={() => router.push('/report-draft')} />
+          </View>
         </View>
       </ScrollView>
     </Screen>
