@@ -371,6 +371,56 @@ export async function fetchReportLanguage(token: string): Promise<ReportLanguage
   return payload.data?.reportLanguage || {};
 }
 
+export type StaticMapType = 'roadmap' | 'satellite';
+
+/** Fetch a Google/Mapbox static map image as a data URI for PDF embedding. */
+export async function fetchStaticMapDataUri(
+  token: string,
+  coords: { latitude: number; longitude: number },
+  maptype: StaticMapType
+): Promise<string | null> {
+  const params = new URLSearchParams({
+    latitude: String(coords.latitude),
+    longitude: String(coords.longitude),
+    maptype,
+  });
+
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/maps/static?${params.toString()}`, {
+      headers: {
+        Accept: 'image/*',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const contentType = response.headers.get('content-type') || 'image/png';
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    const base64 = globalThis.btoa(binary);
+    return `data:${contentType};base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchPropertyMapPair(
+  token: string,
+  coords: { latitude: number; longitude: number }
+): Promise<{ roadmap: string | null; satellite: string | null }> {
+  const [roadmap, satellite] = await Promise.all([
+    fetchStaticMapDataUri(token, coords, 'roadmap'),
+    fetchStaticMapDataUri(token, coords, 'satellite'),
+  ]);
+  return { roadmap, satellite };
+}
+
 export async function uploadJobPhoto(
   token: string,
   jobId: string,

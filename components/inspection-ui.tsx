@@ -42,6 +42,26 @@ export function PrimaryButton({
   );
 }
 
+export function OutlineButton({
+  title,
+  onPress,
+  disabled = false,
+}: {
+  title: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      disabled={disabled}
+      style={[styles.outlineButton, disabled && styles.buttonDisabled]}
+      onPress={onPress}
+    >
+      <Text style={styles.outlineButtonText}>{title}</Text>
+    </Pressable>
+  );
+}
+
 export function InfoRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) {
   return (
     <View style={[styles.infoRow, last && styles.infoRowLast]}>
@@ -83,8 +103,20 @@ export const ui = StyleSheet.create({
 const styles = StyleSheet.create({
   sectionTitle: { color: Brand.ink, fontSize: 16, fontWeight: '800', marginBottom: 10, marginTop: 24 },
   button: { alignItems: 'center', backgroundColor: Brand.accent, borderRadius: 14, minHeight: 54, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 16 },
+  outlineButton: {
+    alignItems: 'center',
+    backgroundColor: Brand.surface,
+    borderColor: Brand.accent,
+    borderRadius: 14,
+    borderWidth: 1,
+    minHeight: 54,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
   buttonDisabled: { opacity: 0.55 },
   buttonText: { color: Brand.surface, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+  outlineButtonText: { color: Brand.accent, fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
   infoRow: {
     borderBottomColor: '#EDF1F2',
     borderBottomWidth: 1,

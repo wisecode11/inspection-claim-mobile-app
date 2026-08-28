@@ -14,6 +14,7 @@ import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
 import {
   fetchJob,
+  fetchPropertyMapPair,
   fetchReportLanguage,
   fetchWeatherVerification,
   jobDateOfLoss,
@@ -73,11 +74,23 @@ export default function ReportScreen() {
         }
 
         let language: ReportLanguagePackage | null = null;
+        let maps: { roadmap: string | null; satellite: string | null } | null = null;
         if (token) {
           language = await fetchReportLanguage(token).catch(() => null);
+          if (
+            typeof snapshot.latitude === 'number' &&
+            typeof snapshot.longitude === 'number' &&
+            Number.isFinite(snapshot.latitude) &&
+            Number.isFinite(snapshot.longitude)
+          ) {
+            maps = await fetchPropertyMapPair(token, {
+              latitude: snapshot.latitude,
+              longitude: snapshot.longitude,
+            }).catch(() => null);
+          }
         }
 
-        const uri = await createInspectionPdf(snapshot, language);
+        const uri = await createInspectionPdf(snapshot, language, maps);
         if (!active) return;
         setPdfUri(uri);
         if (data.jobId) {
@@ -286,14 +299,15 @@ const styles = StyleSheet.create({
   primaryText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
   secondary: {
     alignItems: 'center',
-    borderColor: '#163A4A',
+    backgroundColor: '#FFF',
+    borderColor: '#E17035',
     borderRadius: 12,
     borderWidth: 1,
     marginTop: 10,
     padding: 15,
     width: '100%',
   },
-  secondaryText: { color: '#163A4A', fontWeight: '800' },
+  secondaryText: { color: '#E17035', fontWeight: '800' },
   link: { marginTop: 18 },
   linkText: { color: '#E17035', fontWeight: '800' },
   editDraft: {
