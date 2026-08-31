@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -17,8 +17,8 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Brand.accent,
-        tabBarInactiveTintColor: Brand.soft,
+        tabBarActiveTintColor: '#A83808',
+        tabBarInactiveTintColor: '#666666',
         tabBarButton: HapticTab,
         tabBarStyle: [
           styles.tabBar,
@@ -34,8 +34,14 @@ export default function TabLayout() {
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons color={color} name="home" size={size} />
+          tabBarIcon: ({ color, focused, size }) => (
+            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <Ionicons
+                color={color}
+                name={focused ? 'home' : 'home-outline'}
+                size={focused ? size + 1 : size}
+              />
+            </View>
           ),
         }}
       />
@@ -44,7 +50,7 @@ export default function TabLayout() {
         options={{
           title: 'Jobs',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons color={color} name="briefcase" size={size} />
+            <Ionicons color={color} name="clipboard-outline" size={size} />
           ),
         }}
       />
@@ -53,7 +59,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons color={color} name="person" size={size} />
+            <Ionicons color={color} name="person-outline" size={size} />
           ),
         }}
       />
@@ -64,12 +70,25 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: Brand.surface,
-    borderTopColor: Brand.border,
+    borderTopColor: '#E8EDEF',
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 6,
   },
   tabLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  iconWrap: {
+    alignItems: 'center',
+    borderRadius: 20,
+    justifyContent: 'center',
+    minHeight: 36,
+    minWidth: 56,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+  },
+  iconWrapActive: {
+    backgroundColor: '#FFF0E8',
   },
 });

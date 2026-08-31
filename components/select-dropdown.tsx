@@ -17,6 +17,7 @@ type SingleProps = {
   selected: string;
   multi?: false;
   placeholder?: string;
+  compact?: boolean;
   onChange: (value: string) => void;
 };
 
@@ -26,6 +27,7 @@ type MultiProps = {
   selected: string[];
   multi: true;
   placeholder?: string;
+  compact?: boolean;
   onChange: (value: string[]) => void;
 };
 
@@ -36,7 +38,7 @@ type Props = SingleProps | MultiProps;
  * to avoid Android "Unable to find viewState for tag" crashes.
  */
 export function SelectDropdown(props: Props) {
-  const { label, options, placeholder = 'Select…' } = props;
+  const { label, options, placeholder = 'Select…', compact = false } = props;
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
 
@@ -76,12 +78,16 @@ export function SelectDropdown(props: Props) {
 
   return (
     <View style={styles.wrap} collapsable={false}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, compact && styles.labelCompact]}>{label}</Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
         onPress={() => setOpen(true)}
-        style={({ pressed }) => [styles.trigger, pressed && styles.triggerPressed]}
+        style={({ pressed }) => [
+          styles.trigger,
+          compact && styles.triggerCompact,
+          pressed && styles.triggerPressed,
+        ]}
       >
         <Text style={[styles.triggerText, !hasValue && styles.triggerPlaceholder]} numberOfLines={1}>
           {summary}
@@ -160,6 +166,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 8,
   },
+  labelCompact: {
+    color: '#60737D',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
   trigger: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -171,6 +185,15 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  triggerCompact: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E9EC',
+    borderRadius: 10,
+    borderWidth: 1,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   triggerPressed: { opacity: 0.88 },
   triggerText: {

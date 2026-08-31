@@ -1,8 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -66,8 +67,34 @@ function AppShell() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="property" options={{ title: 'Property Details' }} />
-        <Stack.Screen name="setup" options={{ title: 'Inspection Setup' }} />
+        <Stack.Screen
+          name="property"
+          options={{
+            title: 'Property Details',
+            headerStyle: {
+              backgroundColor: '#FFFFFF',
+            },
+            headerShadowVisible: true,
+            headerTitleAlign: 'center',
+            headerTitleStyle: { color: Brand.ink, fontSize: 17, fontWeight: '700' },
+            headerRight: () => (
+              <Pressable hitSlop={10} style={styles.headerMenuBtn}>
+                <Ionicons color={Brand.ink} name="ellipsis-vertical" size={20} />
+              </Pressable>
+            ),
+          }}
+        />
+        <Stack.Screen
+          name="setup"
+          options={{
+            title: 'Inspection Setup',
+            headerBackButtonDisplayMode: 'minimal',
+            headerStyle: { backgroundColor: '#FFFFFF' },
+            headerShadowVisible: false,
+            headerTitleAlign: 'left',
+            headerTitleStyle: { color: Brand.ink, fontSize: 17, fontWeight: '700' },
+          }}
+        />
         <Stack.Screen name="capture/index" options={{ headerShown: false, title: 'Field Capture' }} />
         <Stack.Screen name="capture/[step]" options={{ headerShown: false, title: 'Field Capture' }} />
         <Stack.Screen name="review" options={{ title: 'Review & Quality Check' }} />
@@ -104,4 +131,5 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   root: { backgroundColor: Brand.background, flex: 1 },
+  headerMenuBtn: { marginRight: 16, padding: 4 },
 });

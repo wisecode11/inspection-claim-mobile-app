@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
@@ -10,7 +11,8 @@ import {
   View,
 } from 'react-native';
 
-import { PrimaryButton, ui } from '@/components/inspection-ui';
+import { ui } from '@/components/inspection-ui';
+import { Brand } from '@/constants/theme';
 import { PhotoAnnotator } from '@/components/photo-annotator';
 import { SelectDropdown } from '@/components/select-dropdown';
 import { useInspection } from '@/context/inspection-context';
@@ -26,43 +28,120 @@ import {
 
 type Props = {
   step: CaptureStep;
-  onContinue: () => void;
 };
 
-function ChipRow({
-  options,
-  selected,
-  multi = false,
-  onChange,
+function photoCaption(photo: PhotoItem) {
+  const parts = [photo.label];
+  if (photo.shotType && photo.shotType !== 'standard') parts.push(photo.shotType);
+  if (photo.damageTags.length) parts.push(photo.damageTags.join(', '));
+  if (photo.notes) parts.push(photo.notes);
+  return parts.join(' · ');
+}
+
+function PhotoActionsMenu({
+  photo,
+  index,
+  total,
+  showCover,
+  onRemove,
+  onSetCover,
+  onReorder,
+  onMove,
+  onAnnotate,
 }: {
-  options: string[];
-  selected: string | string[];
-  multi?: boolean;
-  onChange: (value: string | string[]) => void;
+  photo: PhotoItem;
+  index: number;
+  total: number;
+  showCover?: boolean;
+  onRemove: (id: string) => void;
+  onSetCover?: (id: string) => void;
+  onReorder: (id: string, direction: 'up' | 'down') => void;
+  onMove: (id: string) => void;
+  onAnnotate?: (photo: PhotoItem) => void;
 }) {
+  const openMenu = () => {
+    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [];
+
+    if (onAnnotate) {
+      buttons.push({ text: 'Mark damage', onPress: () => onAnnotate(photo) });
+    }
+    if (showCover && onSetCover && !photo.isCover) {
+      buttons.push({ text: 'Set as cover', onPress: () => onSetCover(photo.id) });
+    }
+    if (index > 0) {
+      buttons.push({ text: 'Move up', onPress: () => onReorder(photo.id, 'up') });
+    }
+    if (index < total - 1) {
+      buttons.push({ text: 'Move down', onPress: () => onReorder(photo.id, 'down') });
+    }
+    buttons.push({ text: 'Move to step', onPress: () => onMove(photo.id) });
+    buttons.push({
+      text: 'Delete',
+      style: 'destructive',
+      onPress: () => onRemove(photo.id),
+    });
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+
+    Alert.alert(photo.label, 'Choose an action', buttons);
+  };
+
   return (
-    <View style={styles.chipWrap}>
-      {options.map((option) => {
-        const active = multi
-          ? (selected as string[]).includes(option)
-          : selected === option;
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Photo options"
+      hitSlop={8}
+      onPress={openMenu}
+      style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
+    >
+      <Ionicons color={Brand.muted} name="ellipsis-horizontal" size={18} />
+    </Pressable>
+  );
+}
+
+function OptionChipRow({
+  items,
+  selected,
+  doneItems,
+  onSelect,
+  shortLabel,
+}: {
+  items: string[];
+  selected: string;
+  doneItems: Set<string>;
+  onSelect: (item: string) => void;
+  shortLabel?: (item: string) => string;
+}) {
+  const labelFor = shortLabel ?? ((item: string) => item);
+  return (
+    <View style={styles.slotChipWrap}>
+      {items.map((item) => {
+        const active = selected === item;
+        const done = doneItems.has(item);
         return (
           <Pressable
-            key={option}
-            style={[styles.chip, active && styles.chipOn]}
-            onPress={() => {
-              if (multi) {
-                const list = selected as string[];
-                onChange(
-                  list.includes(option) ? list.filter((item) => item !== option) : [...list, option]
-                );
-              } else {
-                onChange(option === selected ? '' : option);
-              }
-            }}
+            key={item}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            onPress={() => onSelect(item)}
+            style={[
+              styles.slotChip,
+              active && styles.slotChipActive,
+              done && !active && styles.slotChipDone,
+            ]}
           >
-            <Text style={[styles.chipText, active && styles.chipTextOn]} numberOfLines={1}>
-              {option}
+            {done ? (
+              <Ionicons
+                color={active ? Brand.surface : '#1D6B3F'}
+                name="checkmark-circle"
+                size={14}
+                style={styles.slotChipIcon}
+              />
+            ) : null}
+            <Text
+              style={[styles.slotChipText, active && styles.slotChipTextActive]}
+              numberOfLines={1}
+            >
+              {labelFor(item)}
             </Text>
           </Pressable>
         );
@@ -71,8 +150,54 @@ function ChipRow({
   );
 }
 
-function PhotoGrid({
+function shortSlotLabel(slot: string) {
+  if (slot === 'Additional Elevations/Structures') return 'More';
+  if (slot === 'Additional Roof Sections') return 'More';
+  if (slot === 'Full Roof / Wide-Angle') return 'Wide';
+  if (slot.length > 14) return slot.split(/[\s/]/)[0];
+  return slot;
+}
+
+function SlotChipRow({
+  slots,
+  selected,
+  doneSlots,
+  onSelect,
+}: {
+  slots: string[];
+  selected: string;
+  doneSlots: Set<string>;
+  onSelect: (slot: string) => void;
+}) {
+  return (
+    <OptionChipRow
+      items={slots}
+      selected={selected}
+      doneItems={doneSlots}
+      onSelect={onSelect}
+      shortLabel={shortSlotLabel}
+    />
+  );
+}
+
+function filteredPhotoCaption(photo: PhotoItem, compact = false) {
+  if (compact) {
+    const parts: string[] = [];
+    const componentLabel = photo.component || photo.label.split(' (')[0];
+    if (componentLabel) parts.push(componentLabel);
+    if (photo.elevation) parts.push(photo.elevation);
+    if (photo.damageTags.length) parts.push(photo.damageTags.join(', '));
+    if (photo.shotType && photo.shotType !== 'standard') parts.push(photo.shotType);
+    if (photo.notes) parts.push(photo.notes);
+    return parts.join(' · ');
+  }
+  return photoCaption(photo);
+}
+
+function PhotoThumbnailGrid({
   photos,
+  compactCaptions = false,
+  minimal = false,
   onRemove,
   onSetCover,
   onReorder,
@@ -81,6 +206,8 @@ function PhotoGrid({
   showCover,
 }: {
   photos: PhotoItem[];
+  compactCaptions?: boolean;
+  minimal?: boolean;
   onRemove: (id: string) => void;
   onSetCover?: (id: string) => void;
   onReorder: (id: string, direction: 'up' | 'down') => void;
@@ -88,17 +215,7 @@ function PhotoGrid({
   onAnnotate?: (photo: PhotoItem) => void;
   showCover?: boolean;
 }) {
-  if (photos.length === 0) {
-    return (
-      <View style={styles.empty}>
-        <View style={styles.emptyIcon}>
-          <View style={styles.emptyLens} />
-        </View>
-        <Text style={styles.emptyTitle}>Ready to capture</Text>
-        <Text style={styles.emptyText}>Take or upload photos for this step. They will show up here.</Text>
-      </View>
-    );
-  }
+  if (photos.length === 0) return null;
 
   return (
     <View style={styles.grid}>
@@ -111,50 +228,109 @@ function PhotoGrid({
             style={styles.photoTap}
           >
             <Image source={{ uri: photo.uri }} style={styles.photo} />
-            <View style={styles.annotateBadge}>
-              <Text style={styles.annotateBadgeText}>Mark</Text>
+            {showCover && photo.isCover ? (
+              <View style={styles.coverBadge}>
+                <Text style={styles.coverBadgeText}>Cover</Text>
+              </View>
+            ) : null}
+            <View style={[styles.annotateBadge, minimal && styles.annotateBadgeMinimal]}>
+              <Ionicons color="#FFFFFF" name="brush-outline" size={12} />
+              {!minimal ? <Text style={styles.annotateBadgeText}>Mark</Text> : null}
             </View>
+            {minimal ? (
+              <View style={styles.photoMenuOverlay}>
+                <PhotoActionsMenu
+                  photo={photo}
+                  index={index}
+                  total={photos.length}
+                  showCover={showCover}
+                  onRemove={onRemove}
+                  onSetCover={onSetCover}
+                  onReorder={onReorder}
+                  onMove={onMove}
+                  onAnnotate={onAnnotate}
+                />
+              </View>
+            ) : null}
           </Pressable>
-          <Text style={styles.caption} numberOfLines={2}>
-            {photo.label}
-            {photo.shotType && photo.shotType !== 'standard' ? ` · ${photo.shotType}` : ''}
-            {photo.damageTags.length ? ` · ${photo.damageTags.join(', ')}` : ''}
-            {photo.notes ? ` · ${photo.notes}` : ''}
-          </Text>
-          <View style={styles.photoActions}>
-            <Pressable
-              disabled={index === 0}
-              onPress={() => onReorder(photo.id, 'up')}
-              style={[styles.miniBtn, index === 0 && styles.miniDisabled]}
-            >
-              <Text style={styles.miniText}>↑</Text>
-            </Pressable>
-            <Pressable
-              disabled={index === photos.length - 1}
-              onPress={() => onReorder(photo.id, 'down')}
-              style={[styles.miniBtn, index === photos.length - 1 && styles.miniDisabled]}
-            >
-              <Text style={styles.miniText}>↓</Text>
-            </Pressable>
-            <Pressable onPress={() => onMove(photo.id)} style={styles.miniBtn}>
-              <Text style={styles.miniText}>Move</Text>
-            </Pressable>
-          </View>
-          {showCover ? (
-            <Pressable onPress={() => onSetCover?.(photo.id)}>
-              <Text style={styles.coverLink}>{photo.isCover ? '★ Cover photo' : 'Set as cover'}</Text>
-            </Pressable>
+          {!minimal ? (
+            <View style={styles.photoMeta}>
+              <Text style={styles.caption} numberOfLines={2}>
+                {filteredPhotoCaption(photo, compactCaptions)}
+              </Text>
+              <PhotoActionsMenu
+                photo={photo}
+                index={index}
+                total={photos.length}
+                showCover={showCover}
+                onRemove={onRemove}
+                onSetCover={onSetCover}
+                onReorder={onReorder}
+                onMove={onMove}
+                onAnnotate={onAnnotate}
+              />
+            </View>
           ) : null}
-          <Pressable onPress={() => onRemove(photo.id)}>
-            <Text style={styles.delete}>Delete</Text>
-          </Pressable>
         </View>
-      ))}
+          ))}
     </View>
   );
 }
 
-export function StepCapture({ step, onContinue }: Props) {
+function ChipRow({
+  options,
+  selected,
+  multi = false,
+  compact = false,
+  onChange,
+}: {
+  options: string[];
+  selected: string | string[];
+  multi?: boolean;
+  compact?: boolean;
+  onChange: (value: string | string[]) => void;
+}) {
+  return (
+    <View style={styles.chipWrap}>
+      {options.map((option) => {
+        const active = multi
+          ? (selected as string[]).includes(option)
+          : selected === option;
+        return (
+          <Pressable
+            key={option}
+            style={[
+              compact ? styles.slotChip : styles.chip,
+              active && (compact ? styles.slotChipActive : styles.chipOn),
+            ]}
+            onPress={() => {
+              if (multi) {
+                const list = selected as string[];
+                onChange(
+                  list.includes(option) ? list.filter((item) => item !== option) : [...list, option]
+                );
+              } else {
+                onChange(option === selected ? '' : option);
+              }
+            }}
+          >
+            <Text
+              style={[
+                compact ? styles.slotChipText : styles.chipText,
+                active && (compact ? styles.slotChipTextActive : styles.chipTextOn),
+              ]}
+              numberOfLines={1}
+            >
+              {option}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+export function StepCapture({ step }: Props) {
   const {
     data,
     addPhotos,
@@ -179,6 +355,62 @@ export function StepCapture({ step, onContinue }: Props) {
   const [photoNotes, setPhotoNotes] = useState('');
   const [movingPhotoId, setMovingPhotoId] = useState<string | null>(null);
   const [annotatingPhoto, setAnnotatingPhoto] = useState<PhotoItem | null>(null);
+
+  const doneSlots = useMemo(() => {
+    if (step.mode !== 'slots') return new Set<string>();
+    return new Set(stepPhotos.map((photo) => photo.label));
+  }, [step.mode, stepPhotos]);
+
+  const doneComponents = useMemo(() => {
+    if (step.mode !== 'components' && step.mode !== 'metal') return new Set<string>();
+    return new Set(
+      stepPhotos
+        .map((photo) => photo.component || photo.label.split(' (')[0])
+        .filter(Boolean)
+    );
+  }, [step.mode, stepPhotos]);
+
+  const visiblePhotos = useMemo(() => {
+    if (step.mode === 'slots' && activeSlot) {
+      return stepPhotos.filter((photo) => photo.label === activeSlot);
+    }
+    if ((step.mode === 'components' || step.mode === 'metal') && activeComponent) {
+      return stepPhotos.filter(
+        (photo) =>
+          photo.component === activeComponent ||
+          photo.label === activeComponent ||
+          photo.label.startsWith(`${activeComponent} (`)
+      );
+    }
+    return stepPhotos;
+  }, [activeComponent, activeSlot, step.mode, stepPhotos]);
+
+  const captureZoneTitle = useMemo(() => {
+    if (step.mode === 'slots' && activeSlot) return `Capture ${activeSlot}`;
+    if ((step.mode === 'components' || step.mode === 'metal') && activeComponent) {
+      return `Capture ${activeComponent}`;
+    }
+    return 'Ready to capture';
+  }, [activeComponent, activeSlot, step.mode]);
+
+  const inlineTagsInCard =
+    step.mode === 'components' || step.mode === 'metal' || step.mode === 'fast' || step.mode === 'tagged';
+
+  const fillsViewport =
+    step.mode === 'slots' ||
+    step.mode === 'components' ||
+    step.mode === 'metal' ||
+    step.mode === 'fast' ||
+    step.mode === 'tagged';
+
+  useEffect(() => {
+    setActiveSlot(step.slots?.[0] ?? '');
+    setActiveComponent(step.components?.[0] ?? '');
+    setElevation('');
+    setDamageTags([]);
+    setMetalShot('overview');
+    setPhotoNotes('');
+  }, [step.id, step.slots, step.components]);
 
   const openAnnotator = (photo: PhotoItem) => {
     setAnnotatingPhoto(photo);
@@ -245,6 +477,34 @@ export function StepCapture({ step, onContinue }: Props) {
       notes: step.mode === 'metal' ? photoNotes.trim() || undefined : undefined,
     });
 
+    if (step.mode === 'slots' && step.slots && activeSlot) {
+      const currentIndex = step.slots.indexOf(activeSlot);
+      const nextEmpty = step.slots
+        .slice(currentIndex + 1)
+        .find((slot) => !stepPhotos.some((photo) => photo.label === slot));
+      if (nextEmpty) setActiveSlot(nextEmpty);
+    }
+
+    if (
+      (step.mode === 'components' || step.mode === 'metal') &&
+      step.components &&
+      activeComponent
+    ) {
+      const currentIndex = step.components.indexOf(activeComponent);
+      const nextEmpty = step.components
+        .slice(currentIndex + 1)
+        .find(
+          (component) =>
+            !stepPhotos.some(
+              (photo) =>
+                photo.component === component ||
+                photo.label === component ||
+                photo.label.startsWith(`${component} (`)
+            )
+        );
+      if (nextEmpty) setActiveComponent(nextEmpty);
+    }
+
     if (step.mode === 'metal' && metalShot === 'overview') {
       setMetalShot('close-up');
     } else if (step.mode === 'metal' && metalShot === 'close-up') {
@@ -268,19 +528,219 @@ export function StepCapture({ step, onContinue }: Props) {
     setMovingPhotoId(photoId);
   };
 
+  const showTakeAnother =
+    stepPhotos.length > 0 &&
+    (step.mode === 'tagged' || step.mode === 'fast' || step.mode === 'metal');
+
+  const compactCaptions = step.mode === 'components' || step.mode === 'metal';
+  const isFormCaptureStep = step.mode === 'components' || step.mode === 'metal';
+
+  const formDetails = isFormCaptureStep && step.components ? (
+    <View style={styles.detailsPanel}>
+      <SelectDropdown
+        compact
+        label="Component"
+        options={step.components}
+        selected={activeComponent}
+        placeholder="Select component"
+        onChange={setActiveComponent}
+      />
+      {step.locationTags?.length ? (
+        <SelectDropdown
+          compact
+          label="Elevation"
+          options={[...step.locationTags]}
+          selected={elevation}
+          placeholder="Select elevation"
+          onChange={setElevation}
+        />
+      ) : null}
+      {step.damageTags?.length ? (
+        <SelectDropdown
+          compact
+          label="Damage tags"
+          options={[...step.damageTags]}
+          selected={damageTags}
+          multi
+          placeholder="Select damage tags"
+          onChange={setDamageTags}
+        />
+      ) : null}
+      {step.mode === 'metal' ? (
+        <>
+          <SelectDropdown
+            compact
+            label="Shot type"
+            options={['overview', 'close-up']}
+            selected={metalShot}
+            placeholder="Select shot type"
+            onChange={(value) => setMetalShot(value as 'overview' | 'close-up')}
+          />
+          <TextInput
+            style={[ui.input, styles.notesInputCompact]}
+            multiline
+            textAlignVertical="top"
+            placeholder="Notes (optional)"
+            placeholderTextColor="#8A9AA3"
+            value={photoNotes}
+            onChangeText={setPhotoNotes}
+          />
+        </>
+      ) : null}
+    </View>
+  ) : null;
+
+  const captureButtons = (
+    <View style={styles.quickBar}>
+      <Pressable style={styles.capture} onPress={() => void capture(true)}>
+        <Ionicons color={Brand.surface} name="camera" size={18} />
+        <Text style={styles.captureText}>Take Photo</Text>
+      </Pressable>
+      <Pressable style={styles.gallery} onPress={() => void capture(false, true)}>
+        <Text style={styles.galleryText}>Upload</Text>
+      </Pressable>
+    </View>
+  );
+
   return (
-    <View>
-      <View style={styles.hero}>
-        <View style={styles.heroTop}>
-          <Text style={styles.eyebrow}>STEP {step.number}</Text>
-          <View style={[styles.countPill, stepPhotos.length > 0 && styles.countPillActive]}>
-            <Text style={[styles.count, stepPhotos.length > 0 && styles.countActive]}>
-              {stepPhotos.length} photo{stepPhotos.length === 1 ? '' : 's'}
-            </Text>
+    <View style={[styles.root, fillsViewport && styles.rootFill]}>
+      <View style={[styles.stepCard, fillsViewport && styles.stepCardFill]}>
+        {isFormCaptureStep ? (
+          <>
+            {formDetails}
+            {captureButtons}
+            {step.components && stepPhotos.length > 0 ? (
+              <View style={styles.progressRow}>
+                <Text style={styles.progressText}>
+                  {doneComponents.size} of {step.components.length} components
+                </Text>
+              </View>
+            ) : null}
+            {stepPhotos.length > 0 ? (
+              <View style={styles.gallerySection}>
+                <View style={styles.galleryHeader}>
+                  <Text style={styles.galleryTitle}>Captured photos</Text>
+                  <Text style={styles.galleryCount}>{stepPhotos.length}</Text>
+                </View>
+                <PhotoThumbnailGrid
+                  photos={stepPhotos}
+                  compactCaptions={compactCaptions}
+                  onRemove={removePhoto}
+                  onSetCover={step.id === 'elevations' ? setCoverPhoto : undefined}
+                  showCover={step.id === 'elevations'}
+                  onReorder={reorderPhoto}
+                  onMove={promptMove}
+                  onAnnotate={openAnnotator}
+                />
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <>
+        <Text style={styles.stepSubtitle}>{step.subtitle}</Text>
+
+        {step.mode === 'slots' && step.slots ? (
+          <SlotChipRow
+            slots={step.slots}
+            selected={activeSlot}
+            doneSlots={doneSlots}
+            onSelect={setActiveSlot}
+          />
+        ) : null}
+
+        {inlineTagsInCard && step.locationTags?.length ? (
+          <View style={styles.tagSection}>
+            <Text style={styles.tagLabel}>Elevation</Text>
+            <ChipRow
+              compact
+              options={[...step.locationTags]}
+              selected={elevation}
+              onChange={(value) => setElevation(value as string)}
+            />
           </View>
+        ) : null}
+
+        {inlineTagsInCard && step.directionTags?.length ? (
+          <View style={styles.tagSection}>
+            <Text style={styles.tagLabel}>Roof direction</Text>
+            <ChipRow
+              compact
+              options={[...step.directionTags]}
+              selected={direction}
+              onChange={(value) => setDirection(value as string)}
+            />
+          </View>
+        ) : null}
+
+        {inlineTagsInCard && step.damageTags?.length ? (
+          <View style={styles.tagSection}>
+            <Text style={styles.tagLabel}>Damage tags</Text>
+            <ChipRow
+              compact
+              multi
+              options={[...step.damageTags]}
+              selected={damageTags}
+              onChange={(value) => setDamageTags(value as string[])}
+            />
+          </View>
+        ) : null}
+
+        <View
+          style={[
+            styles.mediaArea,
+            fillsViewport && visiblePhotos.length === 0 && styles.mediaAreaFill,
+          ]}
+        >
+          {visiblePhotos.length === 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={captureZoneTitle}
+              onPress={() => void capture(true)}
+              style={({ pressed }) => [styles.captureZone, pressed && styles.captureZonePressed]}
+            >
+              <View style={styles.captureZoneIcon}>
+                <Ionicons color={Brand.soft} name="camera-outline" size={28} />
+              </View>
+              <Text style={styles.captureZoneTitle}>{captureZoneTitle}</Text>
+              <Text style={styles.captureZoneHint}>Tap here or use the button below</Text>
+            </Pressable>
+          ) : (
+            <PhotoThumbnailGrid
+              photos={visiblePhotos}
+              compactCaptions={compactCaptions}
+              onRemove={removePhoto}
+              onSetCover={step.id === 'elevations' ? setCoverPhoto : undefined}
+              showCover={step.id === 'elevations'}
+              onReorder={reorderPhoto}
+              onMove={promptMove}
+              onAnnotate={openAnnotator}
+            />
+          )}
         </View>
-        <Text style={ui.title}>{step.title}</Text>
-        <Text style={ui.subtitle}>{step.subtitle}</Text>
+
+        <View style={styles.quickBar}>
+          <Pressable style={styles.capture} onPress={() => void capture(true)}>
+            <Ionicons color={Brand.surface} name="camera" size={18} />
+            <Text style={styles.captureText}>Take Photo</Text>
+          </Pressable>
+          <Pressable style={styles.gallery} onPress={() => void capture(false, true)}>
+            <Text style={styles.galleryText}>Upload</Text>
+          </Pressable>
+        </View>
+
+        {showTakeAnother ? (
+          <Pressable style={styles.another} onPress={() => void capture(true)}>
+            <Text style={styles.anotherText}>Take another photo</Text>
+          </Pressable>
+        ) : null}
+
+        {step.mode === 'slots' && stepPhotos.length > 0 ? (
+          <Text style={styles.slotProgress}>
+            {doneSlots.size} of {step.slots?.length ?? 0} sides captured
+          </Text>
+        ) : null}
+          </>
+        )}
       </View>
 
       {movingPhotoId ? (
@@ -308,45 +768,6 @@ export function StepCapture({ step, onContinue }: Props) {
         </View>
       ) : null}
 
-      <View style={styles.quickBar}>
-        <Pressable style={styles.capture} onPress={() => void capture(true)}>
-          <Text style={styles.captureText}>Take Photo</Text>
-        </Pressable>
-        <Pressable style={styles.gallery} onPress={() => void capture(false, true)}>
-          <Text style={styles.galleryText}>Upload</Text>
-        </Pressable>
-      </View>
-      {(step.mode === 'tagged' || step.mode === 'fast' || step.mode === 'metal') && (
-        <Pressable style={styles.another} onPress={() => void capture(true)}>
-          <Text style={styles.anotherText}>Take Another</Text>
-        </Pressable>
-      )}
-
-      {step.mode === 'slots' && step.slots ? (
-        <View style={styles.sectionCard}>
-          <SelectDropdown
-            label="Capture for"
-            options={step.slots}
-            selected={activeSlot}
-            placeholder="Select elevation / structure"
-            onChange={setActiveSlot}
-          />
-        </View>
-      ) : null}
-
-      {(step.mode === 'components' || step.mode === 'metal' || step.mode === 'checklist') &&
-      step.components ? (
-        <View style={styles.sectionCard}>
-          <SelectDropdown
-            label="Component"
-            options={step.components}
-            selected={activeComponent}
-            placeholder="Select a component"
-            onChange={setActiveComponent}
-          />
-        </View>
-      ) : null}
-
       {step.mode === 'checklist' && step.components ? (
         <>
           <Text style={styles.label}>Mark present</Text>
@@ -366,28 +787,7 @@ export function StepCapture({ step, onContinue }: Props) {
         </>
       ) : null}
 
-      {step.mode === 'metal' ? (
-        <>
-          <Text style={styles.label}>Shot type</Text>
-          <ChipRow
-            options={['overview', 'close-up']}
-            selected={metalShot}
-            onChange={(value) => setMetalShot(value as 'overview' | 'close-up')}
-          />
-          <Text style={styles.label}>Notes</Text>
-          <TextInput
-            style={[ui.input, styles.notesInput]}
-            multiline
-            textAlignVertical="top"
-            placeholder="Optional notes for this metal photo"
-            placeholderTextColor="#8A9AA3"
-            value={photoNotes}
-            onChangeText={setPhotoNotes}
-          />
-        </>
-      ) : null}
-
-      {step.locationTags?.length ? (
+      {step.locationTags?.length && !inlineTagsInCard ? (
         <View style={styles.sectionCard}>
           <SelectDropdown
             label="Elevation / location"
@@ -399,7 +799,7 @@ export function StepCapture({ step, onContinue }: Props) {
         </View>
       ) : null}
 
-      {step.directionTags?.length ? (
+      {step.directionTags?.length && !inlineTagsInCard ? (
         <View style={styles.sectionCard}>
           <SelectDropdown
             label="Roof direction"
@@ -411,7 +811,7 @@ export function StepCapture({ step, onContinue }: Props) {
         </View>
       ) : null}
 
-      {step.damageTags?.length ? (
+      {step.damageTags?.length && !inlineTagsInCard ? (
         <View style={styles.sectionCard}>
           <SelectDropdown
             label="Damage tags"
@@ -484,16 +884,6 @@ export function StepCapture({ step, onContinue }: Props) {
         </>
       )}
 
-      <PhotoGrid
-        photos={stepPhotos}
-        onRemove={removePhoto}
-        onSetCover={step.id === 'elevations' ? setCoverPhoto : undefined}
-        showCover={step.id === 'elevations'}
-        onReorder={reorderPhoto}
-        onMove={promptMove}
-        onAnnotate={openAnnotator}
-      />
-
       <PhotoAnnotator
         visible={Boolean(annotatingPhoto)}
         uri={annotatingPhoto?.uri ?? ''}
@@ -515,42 +905,193 @@ export function StepCapture({ step, onContinue }: Props) {
           setAnnotatingPhoto(null);
         }}
       />
-
-      <View style={{ marginTop: 24 }}>
-        <PrimaryButton title={step.number === 10 ? 'Continue to Review' : 'Next Step'} onPress={onContinue} />
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: { marginBottom: 8 },
-  heroTop: {
+  root: {
+    flexGrow: 1,
+  },
+  rootFill: {
+    flex: 1,
+  },
+  stepCard: {
+    backgroundColor: Brand.surface,
+    borderColor: '#E2E9EC',
+    borderRadius: 18,
+    borderWidth: 1,
+    marginTop: 6,
+    padding: 18,
+    shadowColor: Brand.ink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+  },
+  stepCardFill: {
+    flex: 1,
+  },
+  stepSubtitle: {
+    color: Brand.muted,
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  slotChipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  slotChip: {
+    alignItems: 'center',
+    backgroundColor: Brand.background,
+    borderColor: Brand.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    minHeight: 38,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  slotChipActive: {
+    backgroundColor: Brand.ink,
+    borderColor: Brand.ink,
+  },
+  slotChipDone: {
+    backgroundColor: '#EDF7F1',
+    borderColor: '#B8DFC9',
+  },
+  slotChipIcon: {
+    marginRight: 4,
+  },
+  slotChipText: {
+    color: Brand.ink,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  slotChipTextActive: {
+    color: Brand.surface,
+  },
+  inlineField: {
+    marginTop: 14,
+  },
+  tagSection: {
+    marginTop: 14,
+  },
+  dropdownGroup: {
+    gap: 12,
+    marginTop: 14,
+  },
+  detailsPanel: {
+    backgroundColor: Brand.background,
+    borderRadius: 14,
+    gap: 10,
+    padding: 14,
+  },
+  notesInputCompact: {
+    height: 72,
+    marginTop: 0,
+  },
+  progressRow: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  progressText: {
+    backgroundColor: Brand.background,
+    borderRadius: 20,
+    color: Brand.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  gallerySection: {
+    borderTopColor: Brand.border,
+    borderTopWidth: 1,
+    marginTop: 16,
+    paddingTop: 14,
+  },
+  galleryHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  eyebrow: {
-    color: '#C45C28',
+  galleryTitle: {
+    color: Brand.ink,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  galleryCount: {
+    backgroundColor: Brand.background,
+    borderRadius: 12,
+    color: Brand.muted,
     fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.2,
+    fontWeight: '600',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  countPill: {
-    backgroundColor: '#FFF1E8',
-    borderColor: '#F0C9B0',
-    borderRadius: 20,
+  tagLabel: {
+    color: Brand.soft,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  mediaArea: {
+    marginTop: 14,
+  },
+  mediaAreaFill: {
+    flex: 1,
+    minHeight: 160,
+  },
+  captureZone: {
+    alignItems: 'center',
+    backgroundColor: Brand.background,
+    borderColor: '#E2E9EC',
+    borderRadius: 14,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 180,
+    paddingHorizontal: 20,
+    paddingVertical: 32,
   },
-  countPillActive: {
-    backgroundColor: '#E17035',
-    borderColor: '#E17035',
+  captureZonePressed: {
+    opacity: 0.85,
   },
-  count: { color: '#9A4A1F', fontSize: 12, fontWeight: '800' },
-  countActive: { color: '#FFFFFF' },
+  captureZoneIcon: {
+    alignItems: 'center',
+    backgroundColor: Brand.surface,
+    borderRadius: 32,
+    height: 64,
+    justifyContent: 'center',
+    marginBottom: 12,
+    width: 64,
+  },
+  captureZoneTitle: {
+    color: Brand.ink,
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  captureZoneHint: {
+    color: Brand.soft,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  slotProgress: {
+    color: Brand.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 12,
+    textAlign: 'center',
+  },
   label: { color: '#163A4A', fontSize: 14, fontWeight: '800', marginBottom: 10, marginTop: 18 },
   labelInCard: { color: '#163A4A', fontSize: 14, fontWeight: '800', marginBottom: 12 },
   sectionCard: {
@@ -576,103 +1117,99 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: '#163A4A', borderColor: '#163A4A' },
   chipText: { color: '#3D5560', fontSize: 13, fontWeight: '700' },
   chipTextOn: { color: '#FFFFFF' },
-  quickBar: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  quickBar: { flexDirection: 'row', gap: 10, marginTop: 14 },
   capture: {
     alignItems: 'center',
-    backgroundColor: '#E17035',
+    backgroundColor: Brand.accent,
     borderRadius: 14,
     flex: 1.2,
-    minHeight: 52,
+    flexDirection: 'row',
+    gap: 6,
     justifyContent: 'center',
+    minHeight: 52,
     paddingHorizontal: 14,
     paddingVertical: 15,
   },
-  captureText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
+  captureText: { color: Brand.surface, fontSize: 15, fontWeight: '700' },
   gallery: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#163A4A',
+    backgroundColor: Brand.surface,
+    borderColor: Brand.border,
     borderRadius: 14,
-    borderWidth: 1.5,
+    borderWidth: 1,
     flex: 1,
-    minHeight: 52,
     justifyContent: 'center',
+    minHeight: 52,
     paddingHorizontal: 14,
     paddingVertical: 15,
   },
-  galleryText: { color: '#163A4A', fontSize: 15, fontWeight: '800' },
+  galleryText: { color: Brand.muted, fontSize: 15, fontWeight: '600' },
   another: {
     alignItems: 'center',
-    backgroundColor: '#163A4A',
-    borderRadius: 14,
-    marginTop: 10,
-    minHeight: 48,
-    justifyContent: 'center',
-    padding: 14,
+    marginTop: 12,
+    paddingVertical: 8,
   },
-  anotherText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  empty: {
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderColor: '#D8E0E4',
-    borderRadius: 16,
-    borderStyle: 'dashed',
-    borderWidth: 1.5,
-    marginTop: 18,
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-  },
-  emptyIcon: {
-    alignItems: 'center',
-    backgroundColor: '#EEF3F5',
-    borderRadius: 28,
-    height: 56,
-    justifyContent: 'center',
-    marginBottom: 14,
-    width: 56,
-  },
-  emptyLens: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#84949C',
-    borderRadius: 12,
-    borderWidth: 2.5,
-    height: 24,
-    width: 24,
-  },
-  emptyTitle: { color: '#163A4A', fontSize: 17, fontWeight: '800' },
-  emptyText: {
-    color: '#526A74',
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16 },
-  photoWrap: { width: '47%' },
+  anotherText: { color: Brand.muted, fontSize: 14, fontWeight: '600' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  photoWrap: { width: '47.5%' },
   photoTap: { position: 'relative' },
-  photo: { borderRadius: 12, height: 130, width: '100%' },
+  photo: {
+    backgroundColor: '#EEF3F5',
+    borderColor: '#E2E9EC',
+    borderRadius: 12,
+    borderWidth: 1,
+    height: 132,
+    width: '100%',
+  },
+  coverBadge: {
+    backgroundColor: Brand.accent,
+    borderRadius: 6,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    position: 'absolute',
+    top: 8,
+  },
+  coverBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   annotateBadge: {
+    alignItems: 'center',
     backgroundColor: 'rgba(22, 58, 74, 0.82)',
     borderRadius: 8,
     bottom: 8,
+    flexDirection: 'row',
+    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
     position: 'absolute',
     right: 8,
   },
-  annotateBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-  caption: { color: '#3D5560', fontSize: 12, fontWeight: '600', marginTop: 6 },
-  photoActions: { flexDirection: 'row', gap: 6, marginTop: 6 },
-  miniBtn: {
-    backgroundColor: '#EEF3F5',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+  annotateBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  annotateBadgeMinimal: {
+    bottom: 8,
+    left: 8,
+    right: undefined,
   },
-  miniDisabled: { opacity: 0.35 },
-  miniText: { color: '#163A4A', fontSize: 11, fontWeight: '800' },
-  coverLink: { color: '#C45C28', fontSize: 12, fontWeight: '800', marginTop: 4 },
-  delete: { color: '#BD3C2D', fontSize: 13, fontWeight: '800', marginTop: 4 },
+  photoMenuOverlay: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+  },
+  photoMeta: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+  },
+  caption: { color: '#3D5560', flex: 1, fontSize: 12, fontWeight: '500', lineHeight: 16 },
+  menuBtn: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 8,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  menuBtnPressed: { opacity: 0.7 },
   listCard: { backgroundColor: '#FFFFFF', borderRadius: 14, overflow: 'hidden' },
   listRow: {
     alignItems: 'center',

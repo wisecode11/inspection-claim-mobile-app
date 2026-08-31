@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,8 +14,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandLogo } from '@/components/brand-logo';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+
+const DarkBg = '#2C2E30';
+const PageBg = '#F4F7F8';
+const LoginAccent = '#A6400D';
+const TextPrimary = '#1C1C1C';
+const TextMuted = '#6B7B85';
+const LabelColor = '#3D4F57';
+const InputBorder = '#D8E0E4';
+const Placeholder = '#A0ADB4';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -43,10 +54,15 @@ export default function LoginScreen() {
     }
   };
 
+  const onForgotPassword = () => {
+    Alert.alert('Forgot password', 'Contact your administrator to reset your password.');
+  };
+
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.backdropTop} />
       <View style={styles.backdropBottom} />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
@@ -57,12 +73,12 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.card}>
-            <View style={styles.logo}>
-              <Text style={styles.logoMark}>⌂</Text>
+            <View style={styles.hero}>
+              <BrandLogo size={64} style={styles.logo} variant="primary" />
+              <Text style={styles.brand}>ROOFCHECK</Text>
+              <Text style={styles.title}>Welcome back</Text>
+              <Text style={styles.subtitle}>Sign in to continue field inspections</Text>
             </View>
-            <Text style={styles.brand}>ROOFCHECK</Text>
-            <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Sign in to continue field inspections</Text>
 
             <View style={styles.form}>
               <Text style={styles.label}>Email</Text>
@@ -76,11 +92,17 @@ export default function LoginScreen() {
                   if (error) setError('');
                 }}
                 placeholder="inspector@roofcheck.com"
-                placeholderTextColor="#8A9AA3"
+                placeholderTextColor={Placeholder}
                 style={styles.input}
                 value={email}
               />
-              <Text style={styles.label}>Password</Text>
+
+              <View style={styles.passwordLabelRow}>
+                <Text style={styles.labelInline}>Password</Text>
+                <Pressable disabled={loading} hitSlop={8} onPress={onForgotPassword}>
+                  <Text style={styles.forgotLink}>Forgot Password?</Text>
+                </Pressable>
+              </View>
               <TextInput
                 autoComplete="password"
                 editable={!loading}
@@ -92,12 +114,14 @@ export default function LoginScreen() {
                   void onSubmit();
                 }}
                 placeholder="Enter your password"
-                placeholderTextColor="#8A9AA3"
+                placeholderTextColor={Placeholder}
                 secureTextEntry
                 style={styles.input}
                 value={password}
               />
+
               {error ? <Text style={styles.error}>{error}</Text> : null}
+
               <Pressable
                 disabled={loading}
                 onPress={() => {
@@ -127,21 +151,21 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: Brand.background,
+    backgroundColor: PageBg,
     flex: 1,
   },
   backdropTop: {
-    backgroundColor: Brand.ink,
-    height: '38%',
+    backgroundColor: DarkBg,
+    height: '50%',
     left: 0,
     position: 'absolute',
     right: 0,
     top: 0,
   },
   backdropBottom: {
-    backgroundColor: Brand.background,
+    backgroundColor: PageBg,
     bottom: 0,
-    height: '62%',
+    height: '50%',
     left: 0,
     position: 'absolute',
     right: 0,
@@ -151,59 +175,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 22,
-    paddingVertical: 28,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
   },
   card: {
-    alignItems: 'center',
+    alignSelf: 'center',
     backgroundColor: Brand.surface,
-    borderColor: 'rgba(22, 58, 74, 0.06)',
-    borderRadius: 22,
-    borderWidth: 1,
-    elevation: 8,
-    maxWidth: 420,
+    borderRadius: 40,
+    elevation: 10,
+    maxWidth: 400,
     paddingBottom: 28,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    shadowColor: '#0F2430',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
+    paddingHorizontal: 28,
+    paddingTop: 36,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
     width: '100%',
   },
-  logo: {
+  hero: {
     alignItems: 'center',
-    backgroundColor: Brand.ink,
-    borderRadius: 18,
-    height: 64,
-    justifyContent: 'center',
-    marginBottom: 16,
-    width: 64,
   },
-  logoMark: {
-    color: Brand.surface,
-    fontSize: 34,
-    fontWeight: '700',
-    marginTop: -4,
+  logo: {
+    marginBottom: 14,
   },
   brand: {
-    color: Brand.accent,
-    fontSize: 12,
+    color: LoginAccent,
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 1.4,
-    marginBottom: 8,
+    letterSpacing: 1.6,
+    marginBottom: 10,
   },
   title: {
-    color: Brand.ink,
-    fontSize: 26,
+    color: TextPrimary,
+    fontSize: 28,
     fontWeight: '800',
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
     textAlign: 'center',
   },
   subtitle: {
-    color: Brand.muted,
-    fontSize: 15,
-    lineHeight: 21,
+    color: TextMuted,
+    fontSize: 14,
+    lineHeight: 20,
     marginTop: 6,
     textAlign: 'center',
   },
@@ -212,51 +225,67 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   label: {
-    color: '#314B57',
+    color: LabelColor,
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 8,
   },
+  labelInline: {
+    color: LabelColor,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  passwordLabelRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  forgotLink: {
+    color: LoginAccent,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   input: {
-    backgroundColor: '#F7FAFB',
-    borderColor: Brand.border,
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderColor: InputBorder,
+    borderRadius: 10,
     borderWidth: 1,
-    color: Brand.ink,
-    fontSize: 16,
+    color: TextPrimary,
+    fontSize: 15,
     marginBottom: 16,
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingVertical: 13,
   },
   error: {
     color: Brand.danger,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     marginBottom: 10,
-    marginTop: -4,
+    marginTop: -6,
     textAlign: 'center',
   },
   button: {
     alignItems: 'center',
-    backgroundColor: Brand.accent,
-    borderRadius: 14,
-    marginTop: 6,
-    minHeight: 52,
+    backgroundColor: LoginAccent,
+    borderRadius: 10,
     justifyContent: 'center',
-    paddingVertical: 15,
+    marginTop: 4,
+    minHeight: 50,
+    paddingVertical: 14,
   },
-  buttonPressed: { opacity: 0.9 },
+  buttonPressed: { opacity: 0.92 },
   buttonDisabled: { opacity: 0.75 },
   buttonText: {
-    color: Brand.surface,
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.2,
+    fontWeight: '700',
   },
   cardFooter: {
-    color: Brand.soft,
+    color: TextMuted,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
     marginTop: 22,
     textAlign: 'center',
   },

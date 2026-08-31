@@ -23,6 +23,7 @@ export type AuthUser = {
   };
 };
 
+
 export type AuthCompany = {
   id: string;
   name: string;
