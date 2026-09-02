@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
     backgroundColor: Brand.accent,
-    borderRadius: 12,
+    borderRadius: Brand.buttonRadius,
     marginTop: 24,
     padding: 16,
   },

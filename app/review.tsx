@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { InfoRow, OutlineButton, PrimaryButton, Screen, ui } from '@/components/inspection-ui';
+import { Brand } from '@/constants/theme';
 import { useInspection } from '@/context/inspection-context';
 import { CAPTURE_STEPS } from '@/lib/capture-steps';
 import { findInspectionGaps, photosForStep } from '@/lib/review-gaps';
@@ -92,7 +93,7 @@ export default function ReviewScreen() {
 
 const styles = StyleSheet.create({
   section: {
-    color: '#163A4A',
+    color: '#133A42',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 10,
@@ -106,11 +107,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   rowLast: { borderBottomWidth: 0 },
-  rowTitle: { color: '#163A4A', flex: 1, fontSize: 14, fontWeight: '700' },
+  rowTitle: { color: '#133A42', flex: 1, fontSize: 14, fontWeight: '700' },
   rowMeta: { color: '#70818A', fontSize: 13, fontWeight: '700' },
-  warnCard: { backgroundColor: '#FFF8F2' },
+  warnCard: { backgroundColor: Brand.accentLight },
   gapRow: { paddingVertical: 10 },
-  gapTitle: { color: '#C45C28', fontSize: 14, fontWeight: '800' },
+  gapTitle: { color: Brand.accent, fontSize: 14, fontWeight: '800' },
   gapText: { color: '#7A5A45', fontSize: 13, marginTop: 2 },
   ok: { color: '#1F7A45', fontSize: 14, fontWeight: '700', marginTop: 18 },
 });

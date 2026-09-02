@@ -20,6 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, G, Line, Path, Polygon, Text as SvgText } from 'react-native-svg';
 import { captureRef } from 'react-native-view-shot';
 
+import { Brand } from '@/constants/theme';
+
 type Tool = 'circle' | 'arrow' | 'draw' | 'text';
 
 type Point = { x: number; y: number };
@@ -362,7 +364,7 @@ export function PhotoAnnotator({ visible, uri, onClose, onSaved }: Props) {
             <Text style={styles.headerTitle}>Annotate copy</Text>
             <Pressable hitSlop={8} onPress={() => void onSave()} disabled={saving}>
               {saving ? (
-                <ActivityIndicator color="#E17035" />
+                <ActivityIndicator color={Brand.accent} />
               ) : (
                 <Text style={[styles.headerAction, styles.save]}>Save copy</Text>
               )}
@@ -388,7 +390,7 @@ export function PhotoAnnotator({ visible, uri, onClose, onSaved }: Props) {
           <View style={styles.toolbar}>
             <View style={styles.pencilRow}>
               <View style={styles.pencilIcon}>
-                <Ionicons color="#163A4A" name="pencil" size={20} />
+                <Ionicons color="#133A42" name="pencil" size={20} />
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolScroll}>
                 {TOOLS.map((entry) => {
@@ -514,7 +516,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   toolbar: {
-    backgroundColor: '#163A4A',
+    backgroundColor: '#133A42',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     gap: 12,
@@ -570,7 +572,7 @@ const styles = StyleSheet.create({
   secondaryBtn: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 10,
+    borderRadius: Brand.buttonRadius,
     flex: 1,
     flexDirection: 'row',
     gap: 6,
@@ -599,7 +601,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   textCardTitle: {
-    color: '#163A4A',
+    color: '#133A42',
     fontSize: 16,
     fontWeight: '800',
     marginBottom: 10,
@@ -609,7 +611,7 @@ const styles = StyleSheet.create({
     borderColor: '#D8E0E4',
     borderRadius: 12,
     borderWidth: 1,
-    color: '#163A4A',
+    color: '#133A42',
     fontSize: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -622,7 +624,7 @@ const styles = StyleSheet.create({
   textCancel: {
     alignItems: 'center',
     borderColor: '#D8E0E4',
-    borderRadius: 12,
+    borderRadius: Brand.buttonRadius,
     borderWidth: 1,
     flex: 1,
     paddingVertical: 12,
@@ -633,8 +635,8 @@ const styles = StyleSheet.create({
   },
   textConfirm: {
     alignItems: 'center',
-    backgroundColor: '#E17035',
-    borderRadius: 12,
+    backgroundColor: Brand.accent,
+    borderRadius: Brand.buttonRadius,
     flex: 1,
     paddingVertical: 12,
   },

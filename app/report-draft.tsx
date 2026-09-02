@@ -645,7 +645,7 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   modalBackdrop: {
-    backgroundColor: 'rgba(22, 58, 74, 0.55)',
+    backgroundColor: 'rgba(27, 67, 50, 0.55)',
     flex: 1,
     justifyContent: 'flex-end',
     padding: 16,
@@ -731,7 +731,7 @@ const styles = StyleSheet.create({
   modalCancel: {
     alignItems: 'center',
     backgroundColor: Brand.background,
-    borderRadius: 12,
+    borderRadius: Brand.buttonRadius,
     marginTop: 10,
     paddingVertical: 14,
   },

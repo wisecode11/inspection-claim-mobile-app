@@ -1,20 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-/** RoofClaim web primary — matches inspection-insurance-web-app BrandMark */
-const RoofClaimPrimary = '#0F4C81';
+import { Brand } from '@/constants/theme';
 
 type BrandLogoProps = {
   size?: number;
   style?: StyleProp<ViewStyle>;
-  /** dark = login card charcoal; primary = RoofClaim brand mark */
+  /** dark = login card charcoal; primary = RoofCheck brand mark */
   variant?: 'dark' | 'primary';
 };
 
 export function BrandLogo({ size = 64, variant = 'primary', style }: BrandLogoProps) {
   const iconSize = Math.round(size * 0.42);
   const radius = Math.round(size * 0.22);
-  const backgroundColor = variant === 'dark' ? '#2C2E30' : RoofClaimPrimary;
+  const backgroundColor = variant === 'dark' ? '#2C2E30' : Brand.primary;
 
   return (
     <View

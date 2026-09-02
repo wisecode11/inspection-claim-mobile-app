@@ -102,12 +102,12 @@ export const ui = StyleSheet.create({
 
 const styles = StyleSheet.create({
   sectionTitle: { color: Brand.ink, fontSize: 16, fontWeight: '800', marginBottom: 10, marginTop: 24 },
-  button: { alignItems: 'center', backgroundColor: Brand.accent, borderRadius: 14, minHeight: 54, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 16 },
+  button: { alignItems: 'center', backgroundColor: Brand.accent, borderRadius: Brand.buttonRadius, minHeight: 54, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 16 },
   outlineButton: {
     alignItems: 'center',
     backgroundColor: Brand.surface,
     borderColor: Brand.accent,
-    borderRadius: 14,
+    borderRadius: Brand.buttonRadius,
     borderWidth: 1,
     minHeight: 54,
     justifyContent: 'center',

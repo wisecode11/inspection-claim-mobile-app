@@ -3,6 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 
+import { Brand } from '@/constants/theme';
+
 type LocationMapProps = {
   initialLatitude: number;
   initialLongitude: number;
@@ -23,7 +25,7 @@ export function LocationMap({ initialLatitude, initialLongitude, embedded = fals
       .leaflet-control-zoom { border: none !important; box-shadow: 0 1px 4px rgba(0,0,0,0.12) !important; }
       .leaflet-control-zoom a {
         background: #fff !important;
-        color: #163A4A !important;
+        color: #133A42 !important;
         border: none !important;
         font-size: 16px !important;
         height: 30px !important;
@@ -35,7 +37,7 @@ export function LocationMap({ initialLatitude, initialLongitude, embedded = fals
         border: none;
       }
       .pin-body {
-        background: #E17035;
+        background: ${Brand.accent};
         border: 3px solid #fff;
         border-radius: 50% 50% 50% 0;
         box-shadow: 0 2px 8px rgba(0,0,0,0.28);
@@ -137,7 +139,7 @@ const styles = StyleSheet.create({
     height: 290,
     marginBottom: 4,
     overflow: 'hidden',
-    shadowColor: '#163A4A',
+    shadowColor: '#133A42',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.06,
     shadowRadius: 14,

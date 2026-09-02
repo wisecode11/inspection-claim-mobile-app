@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   nextButton: {
     alignItems: 'center',
     backgroundColor: Brand.accent,
-    borderRadius: 14,
+    borderRadius: Brand.buttonRadius,
     flexDirection: 'row',
     gap: 8,
     justifyContent: 'center',

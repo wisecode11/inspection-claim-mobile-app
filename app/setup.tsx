@@ -21,8 +21,6 @@ import { captureHref } from '@/lib/routes';
 const SetupBg = '#F4F7F8';
 const TextMuted = '#6B7B85';
 const LabelMuted = '#9AA8B0';
-const SetupAccent = '#C45A1F';
-
 function shortAddress(address: string) {
   const trimmed = address.trim();
   if (!trimmed) return '—';
@@ -88,7 +86,7 @@ function formatUpdatedLabel(updatedAt: number | null, busy: boolean) {
 
 const cardShadow = {
   elevation: 2,
-  shadowColor: '#163A4A',
+  shadowColor: '#133A42',
   shadowOffset: { width: 0, height: 2 },
   shadowOpacity: 0.06,
   shadowRadius: 8,
@@ -411,8 +409,8 @@ const styles = StyleSheet.create({
   },
   startButton: {
     alignItems: 'center',
-    backgroundColor: SetupAccent,
-    borderRadius: 10,
+    backgroundColor: Brand.accent,
+    borderRadius: Brand.buttonRadius,
     flexDirection: 'row',
     gap: 6,
     justifyContent: 'center',

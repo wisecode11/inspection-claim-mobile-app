@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Brand } from '@/constants/theme';
+
 type SingleProps = {
   label: string;
   options: string[];
@@ -104,7 +106,7 @@ export function SelectDropdown(props: Props) {
               onPress={() => props.onChange(props.selected.filter((entry) => entry !== item))}
             >
               <Text style={styles.selectedChipText}>{item}</Text>
-              <Ionicons color="#163A4A" name="close" size={14} />
+              <Ionicons color="#133A42" name="close" size={14} />
             </Pressable>
           ))}
         </View>
@@ -161,7 +163,7 @@ export function SelectDropdown(props: Props) {
 const styles = StyleSheet.create({
   wrap: { marginTop: 0 },
   label: {
-    color: '#163A4A',
+    color: '#133A42',
     fontSize: 13,
     fontWeight: '800',
     marginBottom: 8,
@@ -197,7 +199,7 @@ const styles = StyleSheet.create({
   },
   triggerPressed: { opacity: 0.88 },
   triggerText: {
-    color: '#163A4A',
+    color: '#133A42',
     flex: 1,
     fontSize: 15,
     fontWeight: '700',
@@ -218,7 +220,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  selectedChipText: { color: '#163A4A', fontSize: 12, fontWeight: '700' },
+  selectedChipText: { color: '#133A42', fontSize: 12, fontWeight: '700' },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15, 35, 45, 0.45)' },
   sheet: {
@@ -235,9 +237,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  sheetTitle: { color: '#163A4A', fontSize: 17, fontWeight: '800' },
+  sheetTitle: { color: '#133A42', fontSize: 17, fontWeight: '800' },
   doneBtn: { paddingHorizontal: 4, paddingVertical: 4 },
-  doneText: { color: '#E17035', fontSize: 15, fontWeight: '800' },
+  doneText: { color: Brand.accent, fontSize: 15, fontWeight: '800' },
   hint: { color: '#60737D', fontSize: 13, marginBottom: 8 },
   option: {
     alignItems: 'center',
@@ -249,12 +251,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   optionOn: {
-    backgroundColor: '#163A4A',
+    backgroundColor: '#133A42',
     borderBottomWidth: 0,
     borderRadius: 12,
     marginVertical: 2,
     paddingHorizontal: 12,
   },
-  optionText: { color: '#163A4A', flex: 1, fontSize: 15, fontWeight: '600' },
+  optionText: { color: '#133A42', flex: 1, fontSize: 15, fontWeight: '600' },
   optionTextOn: { color: '#FFFFFF', fontWeight: '700' },
 });

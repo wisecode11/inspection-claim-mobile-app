@@ -15,17 +15,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 
-const DarkBg = '#2C2E30';
-const PageBg = '#F4F7F8';
-const LoginAccent = '#A6400D';
-const TextPrimary = '#1C1C1C';
-const TextMuted = '#6B7B85';
-const LabelColor = '#3D4F57';
-const InputBorder = '#D8E0E4';
-const Placeholder = '#A0ADB4';
+const HeroPrimary = Brand.accent;
+const HeroTextMuted = '#8FAEB8';
+const BodyBg = Brand.sheetBg;
+const TextPrimary = '#1A1A1A';
+const TextSecondary = '#6B7280';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -59,28 +57,46 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-      <View style={styles.backdropTop} />
-      <View style={styles.backdropBottom} />
-
+    <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
+      <SafeTopGuard color={HeroPrimary} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
       >
         <ScrollView
-          contentContainerStyle={styles.content}
+          bounces
+          contentContainerStyle={styles.scrollContent}
+          contentInsetAdjustmentBehavior="never"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          style={styles.scrollView}
         >
-          <View style={styles.card}>
-            <View style={styles.hero}>
-              <BrandLogo size={64} style={styles.logo} variant="primary" />
-              <Text style={styles.brand}>ROOFCHECK</Text>
-              <Text style={styles.title}>Welcome back</Text>
-              <Text style={styles.subtitle}>Sign in to continue field inspections</Text>
+          <View style={styles.heroSection}>
+            <View style={styles.heroOrbLarge} pointerEvents="none" />
+            <View style={styles.heroOrbSmall} pointerEvents="none" />
+
+            <View style={styles.brandRow}>
+              <View style={styles.logoMark}>
+                <Text style={styles.logoText}>R</Text>
+              </View>
+              <Text style={styles.brandName}>RoofCheck</Text>
             </View>
 
-            <View style={styles.form}>
+            <View style={styles.heroLogoWrap}>
+              <BrandLogo size={72} variant="primary" />
+            </View>
+
+            <Text style={styles.heroEyebrow}>INSPECTOR PORTAL</Text>
+            <Text style={styles.heroTitle}>{'Welcome\nback'}</Text>
+            <Text style={styles.heroBody}>
+              {'Sign in to continue field\ninspections and capture evidence.'}
+            </Text>
+          </View>
+
+          <View style={styles.bodySheet}>
+            <View style={styles.formCard}>
+              <Text style={styles.formTitle}>Sign in</Text>
+
               <Text style={styles.label}>Email</Text>
               <TextInput
                 autoCapitalize="none"
@@ -92,7 +108,7 @@ export default function LoginScreen() {
                   if (error) setError('');
                 }}
                 placeholder="inspector@roofcheck.com"
-                placeholderTextColor={Placeholder}
+                placeholderTextColor={Brand.soft}
                 style={styles.input}
                 value={email}
               />
@@ -100,7 +116,7 @@ export default function LoginScreen() {
               <View style={styles.passwordLabelRow}>
                 <Text style={styles.labelInline}>Password</Text>
                 <Pressable disabled={loading} hitSlop={8} onPress={onForgotPassword}>
-                  <Text style={styles.forgotLink}>Forgot Password?</Text>
+                  <Text style={styles.forgotLink}>Forgot password?</Text>
                 </Pressable>
               </View>
               <TextInput
@@ -114,7 +130,7 @@ export default function LoginScreen() {
                   void onSubmit();
                 }}
                 placeholder="Enter your password"
-                placeholderTextColor={Placeholder}
+                placeholderTextColor={Brand.soft}
                 secureTextEntry
                 style={styles.input}
                 value={password}
@@ -136,12 +152,14 @@ export default function LoginScreen() {
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.buttonText}>Log In</Text>
+                  <>
+                    <Text style={styles.buttonText}>Log in</Text>
+                  </>
                 )}
               </Pressable>
             </View>
 
-            <Text style={styles.cardFooter}>Field inspections made simple</Text>
+            <Text style={styles.footer}>Field inspections made simple</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -151,110 +169,156 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: PageBg,
+    backgroundColor: HeroPrimary,
     flex: 1,
   },
-  backdropTop: {
-    backgroundColor: DarkBg,
-    height: '50%',
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
+  flex: {
+    flex: 1,
   },
-  backdropBottom: {
-    backgroundColor: PageBg,
-    bottom: 0,
-    height: '50%',
-    left: 0,
-    position: 'absolute',
-    right: 0,
+  scrollView: {
+    flex: 1,
   },
-  flex: { flex: 1 },
-  content: {
-    alignItems: 'center',
+  scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 24,
   },
-  card: {
-    alignSelf: 'center',
-    backgroundColor: Brand.surface,
-    borderRadius: 40,
-    elevation: 10,
-    maxWidth: 400,
+  heroSection: {
+    backgroundColor: HeroPrimary,
+    overflow: 'visible',
     paddingBottom: 28,
-    paddingHorizontal: 28,
-    paddingTop: 36,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    width: '100%',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    position: 'relative',
   },
-  hero: {
+  heroOrbLarge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 999,
+    height: 220,
+    position: 'absolute',
+    right: -60,
+    top: -20,
+    width: 220,
+  },
+  heroOrbSmall: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 999,
+    bottom: 40,
+    height: 120,
+    position: 'absolute',
+    right: 16,
+    width: 120,
+  },
+  brandRow: {
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 28,
   },
-  logo: {
-    marginBottom: 14,
+  logoMark: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 10,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
-  brand: {
-    color: LoginAccent,
-    fontSize: 11,
+  logoText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 1.6,
-    marginBottom: 10,
   },
-  title: {
+  brandName: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  heroLogoWrap: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  heroEyebrow: {
+    color: HeroTextMuted,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    lineHeight: 38,
+    marginTop: 14,
+  },
+  heroBody: {
+    color: HeroTextMuted,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 19,
+    marginTop: 14,
+    maxWidth: '92%',
+  },
+  bodySheet: {
+    backgroundColor: BodyBg,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    flexGrow: 1,
+    minHeight: 360,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
+    paddingTop: 28,
+  },
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#EBE6DF',
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    elevation: 2,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  formTitle: {
     color: TextPrimary,
-    fontSize: 28,
+    fontSize: 17,
     fontWeight: '800',
-    letterSpacing: -0.5,
-    textAlign: 'center',
-  },
-  subtitle: {
-    color: TextMuted,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  form: {
-    marginTop: 28,
-    width: '100%',
+    letterSpacing: -0.2,
+    marginBottom: 18,
   },
   label: {
-    color: LabelColor,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 8,
+    color: Brand.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
   },
   labelInline: {
-    color: LabelColor,
-    fontSize: 13,
-    fontWeight: '700',
+    color: Brand.muted,
+    fontSize: 12,
+    fontWeight: '600',
   },
   passwordLabelRow: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
     marginTop: 4,
   },
   forgotLink: {
-    color: LoginAccent,
+    color: HeroPrimary,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   input: {
     backgroundColor: '#FFFFFF',
-    borderColor: InputBorder,
-    borderRadius: 10,
+    borderColor: Brand.border,
+    borderRadius: Brand.buttonRadius,
     borderWidth: 1,
     color: TextPrimary,
     fontSize: 15,
-    marginBottom: 16,
+    marginBottom: 14,
     paddingHorizontal: 14,
     paddingVertical: 13,
   },
@@ -263,30 +327,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 10,
-    marginTop: -6,
+    marginTop: -4,
     textAlign: 'center',
   },
   button: {
     alignItems: 'center',
-    backgroundColor: LoginAccent,
-    borderRadius: 10,
+    backgroundColor: HeroPrimary,
+    borderRadius: Brand.buttonRadiusLg,
+    flexDirection: 'row',
+    gap: 4,
     justifyContent: 'center',
-    marginTop: 4,
-    minHeight: 50,
-    paddingVertical: 14,
+    marginTop: 6,
+    minHeight: 48,
+    paddingVertical: 13,
   },
-  buttonPressed: { opacity: 0.92 },
-  buttonDisabled: { opacity: 0.75 },
+  buttonPressed: {
+    opacity: 0.92,
+  },
+  buttonDisabled: {
+    opacity: 0.75,
+  },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
-  cardFooter: {
-    color: TextMuted,
+  footer: {
+    color: TextSecondary,
     fontSize: 12,
     fontWeight: '500',
-    marginTop: 22,
+    marginTop: 24,
     textAlign: 'center',
   },
 });

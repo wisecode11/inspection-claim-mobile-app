@@ -24,7 +24,7 @@ const ConfirmedGreen = '#1B5E20';
 
 const cardShadow = {
   elevation: 3,
-  shadowColor: '#163A4A',
+  shadowColor: '#133A42',
   shadowOffset: { width: 0, height: 3 },
   shadowOpacity: 0.08,
   shadowRadius: 10,
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   statusConfirmed: { backgroundColor: ConfirmedGreen },
-  statusPending: { backgroundColor: '#B85A24' },
+  statusPending: { backgroundColor: Brand.accent },
   statusDot: {
     backgroundColor: '#FFFFFF',
     borderRadius: 3,
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Brand.surface,
     borderColor: Brand.ink,
-    borderRadius: 12,
+    borderRadius: Brand.buttonRadius,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 8,
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   startButton: {
     alignItems: 'center',
     backgroundColor: Brand.accent,
-    borderRadius: 12,
+    borderRadius: Brand.buttonRadius,
     flexDirection: 'row',
     gap: 8,
     justifyContent: 'center',

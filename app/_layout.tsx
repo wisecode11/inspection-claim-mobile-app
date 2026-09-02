@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { AnimatedSplash } from '@/components/animated-splash';
@@ -98,6 +99,16 @@ function AppShell() {
         <Stack.Screen name="capture/index" options={{ headerShown: false, title: 'Field Capture' }} />
         <Stack.Screen name="capture/[step]" options={{ headerShown: false, title: 'Field Capture' }} />
         <Stack.Screen name="review" options={{ title: 'Review & Quality Check' }} />
+        <Stack.Screen
+          name="jobs-in-progress"
+          options={{
+            title: 'Jobs in progress',
+            headerBackButtonDisplayMode: 'minimal',
+            headerStyle: { backgroundColor: '#FFFFFF' },
+            headerShadowVisible: false,
+            headerTitleStyle: { color: Brand.ink, fontSize: 17, fontWeight: '700' },
+          }}
+        />
         <Stack.Screen name="report-draft" options={{ title: 'Editable PDF Draft' }} />
         <Stack.Screen name="report" options={{ title: 'Evidence Package' }} />
         <Stack.Screen name="inspection" options={{ title: 'Inspection Overview' }} />
@@ -118,13 +129,15 @@ function AppShell() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.root}>
-      <AppErrorBoundary>
-        <AuthProvider>
-          <InspectionProvider>
-            <AppShell />
-          </InspectionProvider>
-        </AuthProvider>
-      </AppErrorBoundary>
+      <SafeAreaProvider>
+        <AppErrorBoundary>
+          <AuthProvider>
+            <InspectionProvider>
+              <AppShell />
+            </InspectionProvider>
+          </AuthProvider>
+        </AppErrorBoundary>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

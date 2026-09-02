@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Brand } from '@/constants/theme';
+
 // Expo Go on Android rejects any photo/video media-library permission call, but writing a new
 // asset still works there, so the permission step is skipped instead of blocking the save.
 const skipMediaPermissions =
@@ -271,7 +273,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: Brand.buttonRadius,
     minWidth: 140,
     alignItems: 'center',
   },
@@ -284,7 +286,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: Brand.buttonRadius,
     minWidth: 120,
     alignItems: 'center',
   },

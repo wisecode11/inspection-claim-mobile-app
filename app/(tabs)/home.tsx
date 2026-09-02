@@ -12,79 +12,42 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
-import { useInspection } from '@/context/inspection-context';
+import { useOpenJob } from '@/hooks/use-open-job';
 import {
-  acceptJob,
   fetchJobs,
   InspectionJob,
   jobAddressText,
-  jobCoordinates,
   jobCustomerName,
-  jobDateLabel,
-  jobDateOfLoss,
-  jobStatusLabel,
 } from '@/lib/api';
+import {
+  filterInProgressJobs,
+  isActionableStatus,
+  isCompletedStatus,
+  isInProgressStatus,
+} from '@/lib/job-status';
 import { loadCachedJobs, saveCachedJobs } from '@/lib/jobs-storage';
 
-const HomeBg = '#F5F8FA';
-const PortalAccent = '#A83808';
+const BodyBg = Brand.sheetBg;
+const HeroPrimary = Brand.accent;
+const HeroPrimaryLight = '#1E5059';
+const HeroTextMuted = '#8FAEB8';
+const STAT_CARD_HEIGHT = 88;
+const STAT_CARD_OVERLAP = STAT_CARD_HEIGHT / 2;
 const TextPrimary = '#1A1A1A';
-const TextSecondary = '#666666';
+const TextSecondary = '#6B7280';
+const StatusGold = '#C49A2C';
 
 function heroHelloName(firstName?: string) {
   const trimmed = firstName?.trim();
-  if (!trimmed) return 'there';
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+  if (!trimmed) return 'THERE';
+  return trimmed.toUpperCase();
 }
 
 function profileInitial(firstName?: string) {
-  const letter = (firstName?.trim().charAt(0) || 'I').toUpperCase();
-  return letter;
-}
-
-function FieldHeroBanner({
-  firstName,
-  company,
-}: {
-  firstName?: string;
-  company: string;
-}) {
-  return (
-    <View style={styles.fieldHero}>
-      <View style={[styles.heroOrb, styles.heroOrbLarge]} />
-      <View style={[styles.heroOrb, styles.heroOrbSmall]} />
-      <View style={styles.heroContent}>
-        <Text style={styles.heroHello}>Hello, {heroHelloName(firstName)}</Text>
-        {company ? <Text style={styles.heroCompany}>from {company}</Text> : null}
-        <Text style={styles.heroTitle}>Ready for the field</Text>
-        <Text style={styles.heroBody}>
-          Review today&apos;s assignments, open a job, and capture claim-ready evidence.
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function isCompletedStatus(status: string) {
-  const key = status.toLowerCase();
-  return key.includes('complete') || key.includes('submit');
-}
-
-function isInProgressStatus(status: string) {
-  const key = status.toLowerCase();
-  return key.includes('progress');
-}
-
-function isActionableStatus(status: string) {
-  const key = status.toLowerCase();
-  return (
-    isInProgressStatus(key) ||
-    key === 'assigned' ||
-    key === 'scheduled' ||
-    key === 'reopened'
-  );
+  return (firstName?.trim().charAt(0) || 'I').toUpperCase();
 }
 
 function jobStats(jobs: InspectionJob[]) {
@@ -99,41 +62,84 @@ function jobStats(jobs: InspectionJob[]) {
   };
 }
 
-function addressLines(address: string) {
-  const trimmed = address.trim();
-  if (!trimmed) return { street: 'No address on file', city: '' };
-  const parts = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
-  if (parts.length >= 2) {
-    return { street: parts[0], city: parts.slice(1).join(', ') };
-  }
-  return { street: trimmed, city: '' };
-}
+function InProgressJobCard({
+  job,
+  opening,
+  onOpen,
+}: {
+  job: InspectionJob;
+  opening: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <View style={styles.jobCard}>
+      <View style={styles.statusLine}>
+        <View style={styles.statusDot} />
+        <Text style={styles.statusLineText}>IN PROGRESS · CONTINUE</Text>
+      </View>
 
-function statusTone(status: string) {
-  const key = status.toLowerCase();
-  if (key.includes('progress')) {
-    return { bg: '#FFF4EC', text: '#B85A24', border: '#F5D4BC' };
-  }
-  return { bg: '#EEF4F6', text: '#1B5F6E', border: '#C5D9DF' };
+      <Text style={styles.jobName}>{jobCustomerName(job)}</Text>
+      <Text style={styles.jobAddress} numberOfLines={3}>
+        {job.geocode?.formattedAddress?.trim() || jobAddressText(job) || 'No address on file'}
+      </Text>
+
+      <Pressable
+        disabled={opening}
+        onPress={onOpen}
+        style={({ pressed }) => [styles.jobCta, pressed && styles.pressed]}
+      >
+        {opening ? (
+          <ActivityIndicator color="#FFFFFF" size="small" />
+        ) : (
+          <>
+            <Text style={styles.jobCtaText}>Continue inspection</Text>
+            <Ionicons color="#FFFFFF" name="chevron-forward" size={18} />
+          </>
+        )}
+      </Pressable>
+    </View>
+  );
 }
 
 function StatCard({
   value,
   label,
-  accentNumber = false,
+  variant = 'default',
   loading,
 }: {
   value: number;
   label: string;
-  accentNumber?: boolean;
+  variant?: 'default' | 'active' | 'muted';
   loading: boolean;
 }) {
+  const isActive = variant === 'active';
+  const isMuted = variant === 'muted';
+
   return (
-    <View style={styles.statCard}>
-      <Text style={[styles.statNumber, accentNumber && styles.statNumberAccent]}>
+    <View
+      style={[
+        styles.statCard,
+        isActive && styles.statCardActive,
+      ]}
+    >
+      <Text
+        style={[
+          styles.statNumber,
+          isActive && styles.statNumberActive,
+          isMuted && styles.statNumberMuted,
+        ]}
+      >
         {loading ? '—' : String(value)}
       </Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.statLabel,
+          isActive && styles.statLabelActive,
+          isMuted && styles.statLabelMuted,
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -141,13 +147,12 @@ function StatCard({
 export default function HomeScreen() {
   const router = useRouter();
   const { user, token, companyName } = useAuth();
-  const { resetForJob } = useInspection();
   const firstName = user?.profile?.firstName?.trim();
   const [jobs, setJobs] = useState<InspectionJob[]>([]);
+  const { openJob, openingJobId } = useOpenJob(setJobs);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [openingJobId, setOpeningJobId] = useState<string | null>(null);
   const hasLoaded = useRef(false);
 
   const loadJobs = useCallback(
@@ -200,479 +205,449 @@ export default function HomeScreen() {
 
   const stats = jobStats(jobs);
 
-  const actionableJobs = useMemo(
-    () => jobs.filter((job) => isActionableStatus(job.status)),
-    [jobs],
-  );
-
-  const featuredJob = useMemo(() => {
-    const inProgress = actionableJobs.find((job) => isInProgressStatus(job.status));
-    if (inProgress) return inProgress;
-    return actionableJobs[0] ?? null;
-  }, [actionableJobs]);
-
-  const showCaughtUp = !loading && !featuredJob;
-
-  const openJob = useCallback(
-    async (job: InspectionJob) => {
-      const customer = jobCustomerName(job);
-      const address = jobAddressText(job);
-      const date = jobDateLabel(job);
-
-      setOpeningJobId(String(job.id));
-      let nextStatus = job.status;
-
-      if (token) {
-        try {
-          const key = job.status.toLowerCase();
-          if (key === 'assigned' || key === 'reopened') {
-            const started = await acceptJob(token, job.id);
-            nextStatus = started.status;
-            setJobs((current) =>
-              current.map((entry) =>
-                entry.id === job.id ? { ...entry, status: started.status } : entry,
-              ),
-            );
-          }
-        } catch {
-          // Offline / already started — continue with local draft.
-        }
-      }
-
-      const coords = jobCoordinates(job);
-      resetForJob({
-        jobId: job.id,
-        customer,
-        address: job.geocode?.formattedAddress?.trim() || address,
-        date,
-        jobStatus: nextStatus,
-        latitude: coords?.latitude ?? null,
-        longitude: coords?.longitude ?? null,
-        locationConfirmed: Boolean(job.geocode?.confirmed),
-        geocodeError: job.geocode?.error || '',
-        dateOfLoss: jobDateOfLoss(job),
-        claimNumber: job.claim?.claimNumber || '',
-        policyNumber: job.claim?.policyNumber || '',
-        phone: job.customer?.phone || '',
-        email: job.customer?.email || '',
-      });
-      setOpeningJobId(null);
-      router.push('/property');
-    },
-    [resetForJob, router, token],
-  );
+  const inProgressJobs = useMemo(() => filterInProgressJobs(jobs), [jobs]);
+  const previewJobs = useMemo(() => inProgressJobs.slice(0, 2), [inProgressJobs]);
+  const showNoInProgress = !loading && inProgressJobs.length === 0;
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
+    <SafeAreaView edges={['top']} style={styles.screen}>
+      <SafeTopGuard color={HeroPrimary} />
       <ScrollView
-        contentContainerStyle={styles.content}
+        bounces
+        contentContainerStyle={styles.scrollContent}
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
+        style={styles.scrollView}
         refreshControl={
           <RefreshControl
-            colors={[PortalAccent]}
+            colors={[Brand.accent]}
             onRefresh={() => void loadJobs('refresh')}
             refreshing={refreshing}
-            tintColor={PortalAccent}
+            tintColor="#FFFFFF"
           />
         }
       >
-        <View style={styles.header}>
-          <View style={styles.profileAvatar}>
-            <Text style={styles.profileAvatarText}>{profileInitial(firstName)}</Text>
-          </View>
-          <View style={styles.headerCopy}>
-            <Text style={styles.portalTitle}>Inspector Portal</Text>
-          </View>
-          <Pressable accessibilityRole="button" hitSlop={10} style={styles.bellBtn}>
-            <Ionicons color={PortalAccent} name="notifications-outline" size={24} />
-            <View style={styles.bellDot} />
-          </Pressable>
-        </View>
+        <View style={[styles.heroSection, { paddingTop: 12 }]}>
+          <View style={styles.heroOrbLarge} pointerEvents="none" />
+          <View style={styles.heroOrbSmall} pointerEvents="none" />
 
-        <FieldHeroBanner company={companyName} firstName={firstName} />
-
-        {error ? (
-          <Pressable onPress={() => void loadJobs('full')} style={styles.errorBanner}>
-            <Text style={styles.errorText}>{error}</Text>
-            <Text style={styles.errorRetry}>Tap to retry</Text>
-          </Pressable>
-        ) : null}
-
-        <View style={styles.statRow}>
-          <StatCard loading={loading} value={stats.today} label="TODAY" />
-          <StatCard loading={loading} value={stats.inProgress} label="IN PROGRESS" accentNumber />
-          <StatCard loading={loading} value={stats.completed} label="COMPLETED" accentNumber />
-        </View>
-
-        {loading ? (
-          <View style={styles.loadingArea}>
-            <ActivityIndicator color={PortalAccent} size="large" />
-          </View>
-        ) : featuredJob ? (
-          <View style={styles.featuredSection}>
-            <View style={styles.featuredCard}>
-              <Text style={styles.priorityLabel}>PRIORITY JOB</Text>
-              <Text style={styles.featuredEyebrow}>
-                {isInProgressStatus(featuredJob.status) ? 'Continue' : 'Up next'}
-              </Text>
-              <Text style={styles.featuredName}>{jobCustomerName(featuredJob)}</Text>
-              {(() => {
-                const lines = addressLines(jobAddressText(featuredJob));
-                return (
-                  <Text style={styles.featuredAddress} numberOfLines={2}>
-                    {lines.city ? `${lines.street}, ${lines.city}` : lines.street}
-                  </Text>
-                );
-              })()}
-              <View
-                style={[
-                  styles.statusBadge,
-                  {
-                    backgroundColor: statusTone(featuredJob.status).bg,
-                    borderColor: statusTone(featuredJob.status).border,
-                  },
-                ]}
-              >
-                <Text style={[styles.statusText, { color: statusTone(featuredJob.status).text }]}>
-                  {jobStatusLabel(featuredJob.status)}
+          <View style={styles.headerRow}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>{profileInitial(firstName)}</Text>
+            </View>
+            <View style={styles.headerCopy}>
+              <Text style={styles.portalTitle}>Inspector Portal</Text>
+              {companyName ? (
+                <Text style={styles.companyName} numberOfLines={1}>
+                  {companyName}
                 </Text>
-              </View>
-              <Pressable
-                disabled={openingJobId === String(featuredJob.id)}
-                onPress={() => void openJob(featuredJob)}
-                style={({ pressed }) => [styles.featuredCta, pressed && styles.pressed]}
-              >
-                {openingJobId === String(featuredJob.id) ? (
-                  <ActivityIndicator color={Brand.surface} size="small" />
-                ) : (
-                  <Text style={styles.featuredCtaText}>
-                    {isInProgressStatus(featuredJob.status)
-                      ? 'Continue inspection'
-                      : 'Start inspection'}
-                  </Text>
-                )}
-              </Pressable>
+              ) : null}
             </View>
-            <Pressable
-              onPress={() => router.navigate('/jobs')}
-              style={({ pressed }) => [styles.viewAllButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.viewAllText}>View all</Text>
-              <Ionicons color={PortalAccent} name="chevron-forward" size={16} />
+            <Pressable accessibilityRole="button" hitSlop={10} style={styles.bellBtn}>
+              <Ionicons color="rgba(255,255,255,0.9)" name="notifications-outline" size={22} />
+              <View style={styles.bellDot} />
             </Pressable>
           </View>
-        ) : showCaughtUp ? (
-          <View style={styles.emptyArea}>
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIconOuter}>
-                <View style={styles.emptyIconInner}>
-                  <Ionicons color="#FFFFFF" name="checkmark" size={28} />
-                </View>
+
+          <Text style={styles.heroEyebrow}>HELLO, {heroHelloName(firstName)}</Text>
+          <Text style={styles.heroTitle}>{'Ready for\nthe field'}</Text>
+          <Text style={styles.heroBody}>
+            {"Review today's assignments, open a job,\nand capture claim-ready evidence."}
+          </Text>
+
+          <View style={styles.statRow}>
+            <StatCard loading={loading} value={stats.today} label="TODAY" />
+            <StatCard loading={loading} value={stats.inProgress} label="IN PROGRESS" variant="active" />
+            <StatCard
+              loading={loading}
+              value={stats.completed}
+              label="COMPLETED"
+              variant={stats.completed === 0 && !loading ? 'muted' : 'default'}
+            />
+          </View>
+        </View>
+
+        <View style={styles.bodySheet}>
+          {error ? (
+            <Pressable onPress={() => void loadJobs('full')} style={styles.errorBanner}>
+              <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.errorRetry}>Tap to retry</Text>
+            </Pressable>
+          ) : null}
+
+          {loading ? (
+            <View style={styles.loadingArea}>
+              <ActivityIndicator color={Brand.accent} size="large" />
+            </View>
+          ) : showNoInProgress ? (
+            <View style={styles.caughtUpSection}>
+              <View style={styles.caughtUpIcon}>
+                <Ionicons color="#FFFFFF" name="checkmark" size={28} />
               </View>
-              <Text style={styles.emptyTitle}>All caught up</Text>
-              <Text style={styles.emptyText}>
-                You have no pending jobs. Pull down to refresh your schedule.
+              <Text style={styles.caughtUpTitle}>No jobs in progress</Text>
+              <Text style={styles.caughtUpText}>
+                Start an inspection from the Jobs tab to see it here.
               </Text>
             </View>
-            <Pressable
-              onPress={() => router.navigate('/jobs')}
-              style={({ pressed }) => [styles.viewAllButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.viewAllText}>View all</Text>
-              <Ionicons color={PortalAccent} name="chevron-forward" size={16} />
-            </Pressable>
-          </View>
-        ) : null}
+          ) : (
+            <View style={styles.jobsSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Jobs in progress</Text>
+              </View>
 
+              {previewJobs.map((job) => (
+                <InProgressJobCard
+                  key={job.id}
+                  job={job}
+                  onOpen={() => void openJob(job)}
+                  opening={openingJobId === String(job.id)}
+                />
+              ))}
+
+              {inProgressJobs.length > 2 ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => router.push('/jobs-in-progress')}
+                  style={({ pressed }) => [styles.viewMoreBtn, pressed && styles.pressed]}
+                >
+                  <Text style={styles.viewMoreText}>View more</Text>
+                  <Ionicons color={HeroPrimary} name="chevron-forward" size={18} />
+                </Pressable>
+              ) : null}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: HomeBg, flex: 1 },
-  content: {
-    flexGrow: 1,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
+  screen: {
+    backgroundColor: HeroPrimary,
+    flex: 1,
   },
-  header: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  heroSection: {
+    backgroundColor: HeroPrimary,
+    overflow: 'visible',
+    paddingBottom: 0,
+    paddingHorizontal: 20,
+    position: 'relative',
+    zIndex: 1,
+  },
+  heroOrbLarge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 999,
+    height: 240,
+    position: 'absolute',
+    right: -70,
+    top: -30,
+    width: 240,
+  },
+  heroOrbSmall: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 999,
+    bottom: 60,
+    height: 140,
+    position: 'absolute',
+    right: 20,
+    width: 140,
+  },
+  headerRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 14,
+    marginBottom: 28,
   },
-  fieldHero: {
-    backgroundColor: Brand.ink,
-    borderRadius: 16,
-    marginBottom: 18,
-    overflow: 'hidden',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    position: 'relative',
+  profileAvatar: {
+    alignItems: 'center',
+    backgroundColor: Brand.sheetBg,
+    borderRadius: 24,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
   },
-  heroOrb: {
-    backgroundColor: 'rgba(255, 255, 255, 0.07)',
-    borderRadius: 999,
-    position: 'absolute',
+  profileAvatarText: {
+    color: HeroPrimary,
+    fontSize: 18,
+    fontWeight: '700',
   },
-  heroOrbLarge: {
-    height: 190,
-    right: -48,
-    top: -36,
-    width: 190,
+  headerCopy: {
+    flex: 1,
+    minWidth: 0,
   },
-  heroOrbSmall: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    bottom: -52,
-    height: 140,
-    right: 24,
-    width: 140,
+  portalTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
-  heroContent: {
-    zIndex: 1,
-  },
-  heroHello: {
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  heroCompany: {
-    color: 'rgba(255, 255, 255, 0.72)',
+  companyName: {
+    color: 'rgba(255,255,255,0.72)',
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
   },
-  heroTitle: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-    lineHeight: 30,
-    marginTop: 12,
-  },
-  heroBody: {
-    color: 'rgba(255, 255, 255, 0.78)',
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 8,
-    maxWidth: '92%',
-  },
-  profileAvatar: {
-    alignItems: 'center',
-    backgroundColor: '#E8EEF0',
-    borderColor: '#DCE4E8',
-    borderRadius: 24,
-    borderWidth: 2,
-    height: 48,
-    justifyContent: 'center',
-    overflow: 'hidden',
-    width: 48,
-  },
-  profileAvatarText: {
-    color: Brand.ink,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  headerCopy: { flex: 1, minWidth: 0 },
-  portalTitle: {
-    color: PortalAccent,
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
   bellBtn: {
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderRadius: 20,
     height: 40,
     justifyContent: 'center',
     position: 'relative',
     width: 40,
   },
   bellDot: {
-    backgroundColor: '#E53935',
-    borderColor: HomeBg,
+    backgroundColor: StatusGold,
+    borderColor: HeroPrimary,
     borderRadius: 4,
     borderWidth: 1.5,
     height: 8,
     position: 'absolute',
-    right: 6,
-    top: 6,
+    right: 8,
+    top: 8,
     width: 8,
   },
-  statRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
+  heroEyebrow: {
+    color: HeroTextMuted,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
   },
-  loadingArea: {
-    alignItems: 'center',
-    paddingVertical: 28,
-  },
-  featuredSection: {
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -0.8,
+    lineHeight: 38,
     marginTop: 14,
   },
-  viewAllButton: {
-    alignItems: 'center',
-    backgroundColor: Brand.surface,
-    borderColor: PortalAccent,
-    borderRadius: 12,
-    borderWidth: 1,
+  heroBody: {
+    color: HeroTextMuted,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 19,
+    marginTop: 14,
+    maxWidth: '92%',
+  },
+  statRow: {
+    alignItems: 'flex-end',
     flexDirection: 'row',
-    gap: 4,
-    justifyContent: 'center',
-    marginTop: 12,
-    minHeight: 44,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-  },
-  viewAllText: {
-    color: PortalAccent,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  emptyArea: {
-    alignItems: 'center',
-    flexGrow: 1,
-    justifyContent: 'center',
-    minHeight: 260,
-    paddingVertical: 24,
+    gap: 8,
+    marginBottom: -STAT_CARD_OVERLAP,
+    marginTop: 28,
+    zIndex: 10,
   },
   statCard: {
     alignItems: 'center',
-    backgroundColor: Brand.surface,
-    borderRadius: 14,
-    elevation: 2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    elevation: 12,
     flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 16,
+    height: STAT_CARD_HEIGHT,
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+  },
+  statCardActive: {
+    backgroundColor: HeroPrimaryLight,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    elevation: 16,
+    height: STAT_CARD_HEIGHT + 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
   },
   statNumber: {
     color: TextPrimary,
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: -0.5,
   },
-  statNumberAccent: {
-    color: PortalAccent,
+  statNumberActive: {
+    color: '#FFFFFF',
+  },
+  statNumberMuted: {
+    color: '#C5CDD3',
   },
   statLabel: {
     color: TextSecondary,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  statLabelActive: {
+    color: 'rgba(255,255,255,0.75)',
+  },
+  statLabelMuted: {
+    color: '#C5CDD3',
+  },
+  bodySheet: {
+    backgroundColor: BodyBg,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    flexGrow: 1,
+    minHeight: 420,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: STAT_CARD_OVERLAP + 20,
+    zIndex: 0,
+  },
+  sectionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    color: TextPrimary,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  sectionLink: {
+    color: TextPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  jobsSection: {
+    marginBottom: 8,
+  },
+  jobCard: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#EBE6DF',
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    elevation: 2,
+    marginBottom: 14,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  jobName: {
+    color: TextPrimary,
+    fontSize: 19,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    marginTop: 2,
+  },
+  jobAddress: {
+    color: TextSecondary,
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 6,
+  },
+  jobCta: {
+    alignItems: 'center',
+    backgroundColor: HeroPrimary,
+    borderRadius: Brand.buttonRadiusLg,
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'center',
+    marginTop: 18,
+    minHeight: 48,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+  },
+  jobCtaText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  viewMoreBtn: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  viewMoreText: {
+    color: HeroPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  statusLine: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  statusDot: {
+    backgroundColor: StatusGold,
+    borderRadius: 4,
+    height: 7,
+    width: 7,
+  },
+  statusLineText: {
+    color: StatusGold,
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.6,
-    marginTop: 6,
-    textAlign: 'center',
   },
-  emptyState: {
+  loadingArea: {
     alignItems: 'center',
-    maxWidth: 300,
-    paddingHorizontal: 12,
+    paddingVertical: 40,
   },
-  emptyIconOuter: {
+  caughtUpSection: {
     alignItems: 'center',
-    backgroundColor: '#E8F2F8',
-    borderRadius: 52,
-    height: 104,
-    justifyContent: 'center',
-    marginBottom: 20,
-    width: 104,
+    paddingVertical: 32,
   },
-  emptyIconInner: {
+  caughtUpIcon: {
     alignItems: 'center',
-    backgroundColor: PortalAccent,
+    backgroundColor: Brand.accent,
     borderRadius: 28,
     height: 56,
     justifyContent: 'center',
+    marginBottom: 16,
     width: 56,
   },
-  emptyTitle: {
+  caughtUpTitle: {
     color: TextPrimary,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
-    letterSpacing: -0.3,
-    textAlign: 'center',
   },
-  emptyText: {
+  caughtUpText: {
     color: TextSecondary,
     fontSize: 14,
     lineHeight: 21,
     marginTop: 8,
     textAlign: 'center',
   },
-  featuredCard: {
-    alignSelf: 'stretch',
-    backgroundColor: Brand.surface,
-    borderRadius: 16,
-    elevation: 2,
-    padding: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+  pressed: {
+    opacity: 0.9,
   },
-  priorityLabel: {
-    color: PortalAccent,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.9,
-    marginBottom: 2,
-  },
-  featuredEyebrow: {
-    color: Brand.soft,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  featuredName: {
-    color: TextPrimary,
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: -0.2,
-  },
-  featuredAddress: {
-    color: TextSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: 20,
-    borderWidth: 1,
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  statusText: { fontSize: 10, fontWeight: '700' },
-  featuredCta: {
-    alignItems: 'center',
-    backgroundColor: PortalAccent,
-    borderRadius: 12,
-    justifyContent: 'center',
-    marginTop: 16,
-    minHeight: 46,
-    paddingVertical: 12,
-  },
-  featuredCtaText: {
-    color: Brand.surface,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  pressed: { opacity: 0.92 },
   errorBanner: {
     backgroundColor: '#FDECEC',
-    borderRadius: 14,
+    borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  errorText: { color: Brand.danger, fontSize: 14, fontWeight: '700' },
-  errorRetry: { color: '#8F3A32', fontSize: 12, fontWeight: '600', marginTop: 4 },
+  errorText: {
+    color: Brand.danger,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  errorRetry: {
+    color: '#8F3A32',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
 });

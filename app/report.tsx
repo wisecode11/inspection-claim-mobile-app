@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { Screen } from '@/components/inspection-ui';
+import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
 import {
@@ -281,17 +282,17 @@ const styles = StyleSheet.create({
     width: 80,
   },
   successMark: { color: '#3C8C5A', fontSize: 42, fontWeight: '800' },
-  title: { color: '#163A4A', fontSize: 24, fontWeight: '800', marginTop: 18, textAlign: 'center' },
+  title: { color: '#133A42', fontSize: 24, fontWeight: '800', marginTop: 18, textAlign: 'center' },
   subtitle: { color: '#70818A', marginTop: 7, textAlign: 'center' },
   reportCard: { backgroundColor: '#FFF', borderRadius: 16, marginTop: 28, padding: 20, width: '100%' },
-  reportLabel: { color: '#E17035', fontSize: 12, fontWeight: '800', letterSpacing: 1 },
-  customer: { color: '#163A4A', fontSize: 20, fontWeight: '800', marginTop: 10 },
+  reportLabel: { color: Brand.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  customer: { color: '#133A42', fontSize: 20, fontWeight: '800', marginTop: 10 },
   address: { color: '#526A74', lineHeight: 20, marginTop: 4 },
   meta: { color: '#84949C', fontSize: 12, marginTop: 18 },
   primary: {
     alignItems: 'center',
-    backgroundColor: '#E17035',
-    borderRadius: 12,
+    backgroundColor: Brand.accent,
+    borderRadius: Brand.buttonRadius,
     marginTop: 24,
     padding: 16,
     width: '100%',
@@ -300,26 +301,26 @@ const styles = StyleSheet.create({
   secondary: {
     alignItems: 'center',
     backgroundColor: '#FFF',
-    borderColor: '#E17035',
-    borderRadius: 12,
+    borderColor: Brand.accent,
+    borderRadius: Brand.buttonRadius,
     borderWidth: 1,
     marginTop: 10,
     padding: 15,
     width: '100%',
   },
-  secondaryText: { color: '#E17035', fontWeight: '800' },
+  secondaryText: { color: Brand.accent, fontWeight: '800' },
   link: { marginTop: 18 },
-  linkText: { color: '#E17035', fontWeight: '800' },
+  linkText: { color: Brand.accent, fontWeight: '800' },
   editDraft: {
     alignItems: 'center',
     marginTop: 14,
     padding: 10,
   },
-  editDraftText: { color: '#163A4A', fontWeight: '700' },
+  editDraftText: { color: '#133A42', fontWeight: '700' },
   send: {
     alignItems: 'center',
-    backgroundColor: '#163A4A',
-    borderRadius: 12,
+    backgroundColor: '#133A42',
+    borderRadius: Brand.buttonRadius,
     marginTop: 10,
     padding: 16,
     width: '100%',

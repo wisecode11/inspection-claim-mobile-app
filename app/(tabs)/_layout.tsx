@@ -17,7 +17,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#A83808',
+        tabBarActiveTintColor: Brand.accent,
         tabBarInactiveTintColor: '#666666',
         tabBarButton: HapticTab,
         tabBarStyle: [
@@ -49,8 +49,14 @@ export default function TabLayout() {
         name="jobs"
         options={{
           title: 'Jobs',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons color={color} name="clipboard-outline" size={size} />
+          tabBarIcon: ({ color, focused, size }) => (
+            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <Ionicons
+                color={color}
+                name={focused ? 'clipboard' : 'clipboard-outline'}
+                size={focused ? size + 1 : size}
+              />
+            </View>
           ),
         }}
       />
@@ -58,8 +64,14 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons color={color} name="person-outline" size={size} />
+          tabBarIcon: ({ color, focused, size }) => (
+            <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <Ionicons
+                color={color}
+                name={focused ? 'person' : 'person-outline'}
+                size={focused ? size + 1 : size}
+              />
+            </View>
           ),
         }}
       />
@@ -89,6 +101,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   iconWrapActive: {
-    backgroundColor: '#FFF0E8',
+    backgroundColor: Brand.accentLight,
   },
 });

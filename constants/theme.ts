@@ -8,13 +8,19 @@ import { Platform } from 'react-native';
 /** RoofCheck product palette used across login, splash, and inspection screens. */
 export const Brand = {
   background: '#F4F7F8',
+  sheetBg: '#F5F0E8',
   surface: '#FFFFFF',
-  ink: '#163A4A',
+  ink: '#133A42',
   muted: '#60737D',
   soft: '#84949C',
   border: '#D8E0E4',
-  accent: '#E17035',
+  accent: '#133A42',
+  accentLight: '#E5EEF1',
+  accentMuted: '#B5CBD3',
+  primary: '#133A42',
   danger: '#C0392B',
+  buttonRadius: 8,
+  buttonRadiusLg: 10,
 } as const;
 
 const tintColorLight = Brand.ink;

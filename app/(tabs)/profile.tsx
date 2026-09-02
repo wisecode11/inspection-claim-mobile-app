@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CommonActions } from '@react-navigation/native';
+import { Image } from 'expo-image';
 import { useNavigation } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -14,25 +15,107 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 
-function InfoRow({ label, value, last = false }: { label: string; value: string; last?: boolean }) {
+const HeroPrimary = Brand.accent;
+const HeroTextMuted = '#8FAEB8';
+const BodyBg = Brand.sheetBg;
+
+function formatRole(role?: string) {
+  if (!role) return 'Field Inspector';
+  const cleaned = role.replace(/[_-]+/g, ' ').trim();
+  if (!cleaned) return 'Field Inspector';
+  return cleaned
+    .split(' ')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function InfoIconRow({
+  icon,
+  label,
+  value,
+  last = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  last?: boolean;
+}) {
   return (
     <View style={[styles.infoRow, last && styles.infoRowLast]}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value || '—'}</Text>
+      <View style={styles.infoIconWrap}>
+        <Ionicons color={HeroPrimary} name={icon} size={18} />
+      </View>
+      <View style={styles.infoCopy}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value || '—'}</Text>
+      </View>
+    </View>
+  );
+}
+
+function CompanyRow({
+  icon,
+  label,
+  value,
+  last = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.companyRow, last && styles.infoRowLast]}>
+      <View style={styles.companyCopy}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value || '—'}</Text>
+      </View>
+      <Ionicons color={Brand.soft} name={icon} size={20} />
+    </View>
+  );
+}
+
+function PreferenceRow({
+  title,
+  subtitle,
+  value,
+  onValueChange,
+  last = false,
+}: {
+  title: string;
+  subtitle: string;
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.preferenceRow, last && styles.infoRowLast]}>
+      <View style={styles.preferenceCopy}>
+        <Text style={styles.preferenceTitle}>{title}</Text>
+        <Text style={styles.preferenceSub}>{subtitle}</Text>
+      </View>
+      <Switch
+        onValueChange={onValueChange}
+        thumbColor="#FFFFFF"
+        trackColor={{ false: '#D8E0E4', true: HeroPrimary }}
+        value={value}
+      />
     </View>
   );
 }
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const { user, companyName, logout } = useAuth();
+  const { user, company, companyName, logout } = useAuth();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [jobAlerts, setJobAlerts] = useState(true);
-  const [draftReminders, setDraftReminders] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(true);
+  const [locationServices, setLocationServices] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
 
   const firstName = user?.profile?.firstName?.trim() || '';
   const lastName = user?.profile?.lastName?.trim() || '';
@@ -41,6 +124,9 @@ export default function ProfileScreen() {
     `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() ||
     user?.email?.charAt(0)?.toUpperCase() ||
     'I';
+  const roleLabel = formatRole(user?.role);
+  const organization = companyName || company?.name || '—';
+  const regionBranch = company?.legalName || company?.name || '—';
 
   const onConfirmLogout = async () => {
     setLoggingOut(true);
@@ -59,74 +145,96 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.pageTitle}>Profile</Text>
-        <Text style={styles.pageSub}>
-          {companyName ? `${companyName} · inspector account` : 'Inspector account and preferences'}
-        </Text>
-
-        <View style={styles.hero}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+    <SafeAreaView edges={['top']} style={styles.screen}>
+      <SafeTopGuard color={HeroPrimary} />
+      <ScrollView
+        bounces
+        contentContainerStyle={styles.scrollContent}
+        contentInsetAdjustmentBehavior="never"
+        showsVerticalScrollIndicator={false}
+        style={styles.scrollView}
+      >
+        <View style={[styles.heroSection, { paddingTop: 8 }]}>
+          <View style={styles.topBar}>
+            <View style={styles.topBarSide} />
+            <Text style={styles.topBarTitle}>Profile</Text>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={10}
+              onPress={() => setLogoutOpen(true)}
+              style={styles.topBarSide}
+            >
+              <Ionicons color="#FFFFFF" name="log-out-outline" size={22} />
+            </Pressable>
           </View>
-          <View style={styles.heroCopy}>
-            <Text style={styles.name}>{fullName}</Text>
-            <Text style={styles.role}>{user?.role || 'Inspector'}</Text>
-            {companyName ? <Text style={styles.company}>{companyName}</Text> : null}
-            <Text style={styles.email}>{user?.email || '—'}</Text>
+
+          <View style={styles.avatarRing}>
+            {user?.profile?.avatarUrl ? (
+              <Image source={{ uri: user.profile.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
           </View>
+
+          <Text style={styles.heroName}>{fullName}</Text>
+          <Text style={styles.heroRole}>{roleLabel}</Text>
         </View>
 
-        <Text style={styles.sectionLabel}>Company</Text>
-        <View style={styles.card}>
-          <InfoRow label="Company name" value={companyName} last />
-        </View>
-
-        <Text style={styles.sectionLabel}>Inspector information</Text>
-        <View style={styles.card}>
-          <InfoRow label="Full name" value={fullName} />
-          <InfoRow label="Email" value={user?.email || ''} />
-          <InfoRow label="Phone" value={user?.profile?.phone || ''} />
-          <InfoRow label="License #" value={user?.profile?.licenseNumber || ''} />
-          <InfoRow label="Status" value={user?.status || ''} last />
-        </View>
-
-        <Text style={styles.sectionLabel}>Account settings</Text>
-        <View style={styles.card}>
-          <View style={styles.settingRow}>
-            <View style={styles.settingCopy}>
-              <Text style={styles.settingTitle}>Job alerts</Text>
-              <Text style={styles.settingSub}>Notify when new jobs are assigned</Text>
-            </View>
-            <Switch
-              trackColor={{ false: '#D8E0E4', true: '#F3C4A8' }}
-              thumbColor={jobAlerts ? Brand.accent : '#f4f3f4'}
-              onValueChange={setJobAlerts}
-              value={jobAlerts}
+        <View style={styles.bodySheet}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Inspector Information</Text>
+            <InfoIconRow icon="mail-outline" label="Email Address" value={user?.email || ''} />
+            <InfoIconRow
+              icon="call-outline"
+              label="Phone Number"
+              value={user?.profile?.phone || ''}
+            />
+            <InfoIconRow
+              icon="card-outline"
+              label="License ID"
+              value={user?.profile?.licenseNumber || ''}
+              last
             />
           </View>
-          <View style={[styles.settingRow, styles.settingRowLast]}>
-            <View style={styles.settingCopy}>
-              <Text style={styles.settingTitle}>Draft reminders</Text>
-              <Text style={styles.settingSub}>Remind me to finish open inspections</Text>
-            </View>
-            <Switch
-              trackColor={{ false: '#D8E0E4', true: '#F3C4A8' }}
-              thumbColor={draftReminders ? Brand.accent : '#f4f3f4'}
-              onValueChange={setDraftReminders}
-              value={draftReminders}
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Company</Text>
+            <CompanyRow icon="business-outline" label="Organization" value={organization} />
+            <CompanyRow icon="map-outline" label="Region Branch" value={regionBranch} last />
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Preferences</Text>
+            <PreferenceRow
+              onValueChange={setPushNotifications}
+              subtitle="Alerts for new job assignments."
+              title="Push Notifications"
+              value={pushNotifications}
+            />
+            <PreferenceRow
+              onValueChange={setLocationServices}
+              subtitle="Track route for dispatch."
+              title="Location Services"
+              value={locationServices}
+            />
+            <PreferenceRow
+              last
+              onValueChange={setDarkMode}
+              subtitle="System default."
+              title="Dark Mode"
+              value={darkMode}
             />
           </View>
-        </View>
 
-        <Pressable
-          onPress={() => setLogoutOpen(true)}
-          style={({ pressed }) => [styles.logoutBtn, pressed && styles.pressed]}
-        >
-          <Ionicons color="#FFFFFF" name="log-out-outline" size={18} />
-          <Text style={styles.logoutText}>Log out</Text>
-        </Pressable>
+          <Pressable
+            onPress={() => setLogoutOpen(true)}
+            style={({ pressed }) => [styles.logoutLink, pressed && styles.pressed]}
+          >
+            <Text style={styles.logoutLinkText}>Log out</Text>
+          </Pressable>
+        </View>
       </ScrollView>
 
       <Modal
@@ -174,90 +282,190 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: Brand.background, flex: 1 },
-  content: { paddingBottom: 36, paddingHorizontal: 20 },
-  pageTitle: { color: Brand.ink, fontSize: 28, fontWeight: '800', marginTop: 8 },
-  pageSub: { color: Brand.muted, fontSize: 14, marginBottom: 20, marginTop: 4 },
-  hero: {
+  screen: {
+    backgroundColor: HeroPrimary,
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  heroSection: {
     alignItems: 'center',
-    backgroundColor: Brand.ink,
-    borderRadius: 22,
+    backgroundColor: HeroPrimary,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+  },
+  topBar: {
+    alignItems: 'center',
     flexDirection: 'row',
-    gap: 14,
-    marginBottom: 22,
-    padding: 18,
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    width: '100%',
+  },
+  topBarSide: {
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  topBarTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  avatarRing: {
+    borderColor: '#FFFFFF',
+    borderRadius: 52,
+    borderWidth: 3,
+    marginBottom: 16,
+    overflow: 'hidden',
   },
   avatar: {
     alignItems: 'center',
-    backgroundColor: Brand.accent,
-    borderRadius: 28,
-    height: 56,
+    backgroundColor: HeroPrimary,
+    height: 96,
     justifyContent: 'center',
-    width: 56,
+    width: 96,
   },
-  avatarText: { color: Brand.surface, fontSize: 20, fontWeight: '800' },
-  heroCopy: { flex: 1 },
-  name: { color: Brand.surface, fontSize: 20, fontWeight: '800' },
-  role: { color: '#C9D9DF', fontSize: 13, fontWeight: '600', marginTop: 2, textTransform: 'capitalize' },
-  company: { color: '#FFD7C2', fontSize: 13, fontWeight: '700', marginTop: 4 },
-  email: { color: '#A9BDC5', fontSize: 13, marginTop: 4 },
-  sectionLabel: {
-    color: Brand.muted,
-    fontSize: 12,
+  avatarImage: {
+    height: 96,
+    width: 96,
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 32,
     fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 12,
+  },
+  heroName: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    textAlign: 'center',
+  },
+  heroRole: {
+    color: HeroTextMuted,
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  bodySheet: {
+    backgroundColor: BodyBg,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    flexGrow: 1,
+    minHeight: 420,
+    paddingBottom: 32,
+    paddingHorizontal: 20,
+    paddingTop: 24,
   },
   card: {
-    backgroundColor: Brand.surface,
-    borderRadius: 18,
-    marginBottom: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    elevation: 1,
+    marginBottom: 16,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+  },
+  cardTitle: {
+    color: '#1A1A1A',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+    marginBottom: 8,
   },
   infoRow: {
+    alignItems: 'center',
     borderBottomColor: '#EDF1F2',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
+    gap: 14,
+    paddingVertical: 14,
+  },
+  infoRowLast: {
+    borderBottomWidth: 0,
+  },
+  infoIconWrap: {
+    alignItems: 'center',
+    backgroundColor: Brand.accentLight,
+    borderRadius: 20,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  infoCopy: {
+    flex: 1,
+  },
+  infoLabel: {
+    color: Brand.soft,
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  infoValue: {
+    color: '#1A1A1A',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  companyRow: {
+    alignItems: 'center',
+    borderBottomColor: '#EDF1F2',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 12,
     justifyContent: 'space-between',
     paddingVertical: 14,
   },
-  infoRowLast: { borderBottomWidth: 0 },
-  infoLabel: { color: Brand.muted, fontSize: 14, marginRight: 12 },
-  infoValue: {
-    color: Brand.ink,
+  companyCopy: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    textAlign: 'right',
   },
-  settingRow: {
+  preferenceRow: {
     alignItems: 'center',
     borderBottomColor: '#EDF1F2',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     gap: 12,
     paddingVertical: 14,
   },
-  settingRowLast: { borderBottomWidth: 0 },
-  settingCopy: { flex: 1 },
-  settingTitle: { color: Brand.ink, fontSize: 15, fontWeight: '800' },
-  settingSub: { color: Brand.muted, fontSize: 12, marginTop: 2 },
-  logoutBtn: {
-    alignItems: 'center',
-    backgroundColor: Brand.accent,
-    borderRadius: 14,
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'center',
-    marginTop: 4,
-    paddingVertical: 16,
+  preferenceCopy: {
+    flex: 1,
+    paddingRight: 8,
   },
-  logoutText: { color: Brand.surface, fontSize: 16, fontWeight: '800' },
-  pressed: { opacity: 0.88 },
+  preferenceTitle: {
+    color: '#1A1A1A',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  preferenceSub: {
+    color: Brand.soft,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3,
+  },
+  logoutLink: {
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 14,
+  },
+  logoutLinkText: {
+    color: Brand.danger,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  pressed: {
+    opacity: 0.88,
+  },
   modalBackdrop: {
     alignItems: 'center',
-    backgroundColor: 'rgba(22, 58, 74, 0.55)',
+    backgroundColor: 'rgba(19, 58, 66, 0.55)',
     flex: 1,
     justifyContent: 'center',
     padding: 24,
@@ -271,7 +479,7 @@ const styles = StyleSheet.create({
   modalIcon: {
     alignItems: 'center',
     alignSelf: 'center',
-    backgroundColor: '#FFF4EE',
+    backgroundColor: Brand.accentLight,
     borderRadius: 18,
     height: 52,
     justifyContent: 'center',
@@ -291,21 +499,33 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
   },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 22 },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 22,
+  },
   modalCancel: {
     alignItems: 'center',
     backgroundColor: Brand.background,
-    borderRadius: 12,
+    borderRadius: Brand.buttonRadius,
     flex: 1,
     paddingVertical: 14,
   },
-  modalCancelText: { color: Brand.ink, fontSize: 15, fontWeight: '800' },
+  modalCancelText: {
+    color: Brand.ink,
+    fontSize: 15,
+    fontWeight: '800',
+  },
   modalConfirm: {
     alignItems: 'center',
     backgroundColor: Brand.accent,
-    borderRadius: 12,
+    borderRadius: Brand.buttonRadius,
     flex: 1,
     paddingVertical: 14,
   },
-  modalConfirmText: { color: Brand.surface, fontSize: 15, fontWeight: '800' },
+  modalConfirmText: {
+    color: Brand.surface,
+    fontSize: 15,
+    fontWeight: '800',
+  },
 });
