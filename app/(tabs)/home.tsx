@@ -212,62 +212,63 @@ export default function HomeScreen() {
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <SafeTopGuard color={HeroPrimary} />
-      <ScrollView
-        bounces
-        contentContainerStyle={styles.scrollContent}
-        contentInsetAdjustmentBehavior="never"
-        showsVerticalScrollIndicator={false}
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl
-            colors={[Brand.accent]}
-            onRefresh={() => void loadJobs('refresh')}
-            refreshing={refreshing}
-            tintColor="#FFFFFF"
-          />
-        }
-      >
-        <View style={[styles.heroSection, { paddingTop: 12 }]}>
-          <View style={styles.heroOrbLarge} pointerEvents="none" />
-          <View style={styles.heroOrbSmall} pointerEvents="none" />
 
-          <View style={styles.headerRow}>
-            <View style={styles.profileAvatar}>
-              <Text style={styles.profileAvatarText}>{profileInitial(firstName)}</Text>
-            </View>
-            <View style={styles.headerCopy}>
-              <Text style={styles.portalTitle}>Inspector Portal</Text>
-              {companyName ? (
-                <Text style={styles.companyName} numberOfLines={1}>
-                  {companyName}
-                </Text>
-              ) : null}
-            </View>
-            <Pressable accessibilityRole="button" hitSlop={10} style={styles.bellBtn}>
-              <Ionicons color="rgba(255,255,255,0.9)" name="notifications-outline" size={22} />
-              <View style={styles.bellDot} />
-            </Pressable>
+      <View style={[styles.heroSection, { paddingTop: 12 }]}>
+        <View style={styles.heroOrbLarge} pointerEvents="none" />
+        <View style={styles.heroOrbSmall} pointerEvents="none" />
+
+        <View style={styles.headerRow}>
+          <View style={styles.profileAvatar}>
+            <Text style={styles.profileAvatarText}>{profileInitial(firstName)}</Text>
           </View>
-
-          <Text style={styles.heroEyebrow}>HELLO, {heroHelloName(firstName)}</Text>
-          <Text style={styles.heroTitle}>{'Ready for\nthe field'}</Text>
-          <Text style={styles.heroBody}>
-            {"Review today's assignments, open a job,\nand capture claim-ready evidence."}
-          </Text>
-
-          <View style={styles.statRow}>
-            <StatCard loading={loading} value={stats.today} label="TODAY" />
-            <StatCard loading={loading} value={stats.inProgress} label="IN PROGRESS" variant="active" />
-            <StatCard
-              loading={loading}
-              value={stats.completed}
-              label="COMPLETED"
-              variant={stats.completed === 0 && !loading ? 'muted' : 'default'}
-            />
+          <View style={styles.headerCopy}>
+            <Text style={styles.portalTitle}>Inspector Portal</Text>
+            {companyName ? (
+              <Text style={styles.companyName} numberOfLines={1}>
+                {companyName}
+              </Text>
+            ) : null}
           </View>
+          <Pressable accessibilityRole="button" hitSlop={10} style={styles.bellBtn}>
+            <Ionicons color="rgba(255,255,255,0.9)" name="notifications-outline" size={22} />
+            <View style={styles.bellDot} />
+          </Pressable>
         </View>
 
-        <View style={styles.bodySheet}>
+        <Text style={styles.heroEyebrow}>HELLO, {heroHelloName(firstName)}</Text>
+        <Text style={styles.heroTitle}>{'Ready for\nthe field'}</Text>
+        <Text style={styles.heroBody}>
+          {"Review today's assignments, open a job,\nand capture claim-ready evidence."}
+        </Text>
+
+        <View style={styles.statRow}>
+          <StatCard loading={loading} value={stats.today} label="TODAY" />
+          <StatCard loading={loading} value={stats.inProgress} label="IN PROGRESS" variant="active" />
+          <StatCard
+            loading={loading}
+            value={stats.completed}
+            label="COMPLETED"
+            variant={stats.completed === 0 && !loading ? 'muted' : 'default'}
+          />
+        </View>
+      </View>
+
+      <View style={styles.bodySheet}>
+        <ScrollView
+          bounces
+          contentContainerStyle={styles.scrollContent}
+          contentInsetAdjustmentBehavior="never"
+          showsVerticalScrollIndicator={false}
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl
+              colors={[Brand.accent]}
+              onRefresh={() => void loadJobs('refresh')}
+              refreshing={refreshing}
+              tintColor={Brand.accent}
+            />
+          }
+        >
           {error ? (
             <Pressable onPress={() => void loadJobs('full')} style={styles.errorBanner}>
               <Text style={styles.errorText}>{error}</Text>
@@ -316,8 +317,8 @@ export default function HomeScreen() {
               ) : null}
             </View>
           )}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -332,9 +333,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 24,
   },
   heroSection: {
     backgroundColor: HeroPrimary,
+    flexShrink: 0,
     overflow: 'visible',
     paddingBottom: 0,
     paddingHorizontal: 20,
@@ -500,9 +503,8 @@ const styles = StyleSheet.create({
     backgroundColor: BodyBg,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    flexGrow: 1,
-    minHeight: 420,
-    paddingBottom: 24,
+    flex: 1,
+    overflow: 'hidden',
     paddingHorizontal: 20,
     paddingTop: STAT_CARD_OVERLAP + 20,
     zIndex: 0,

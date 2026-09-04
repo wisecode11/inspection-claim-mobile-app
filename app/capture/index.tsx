@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { CaptureChrome } from '@/components/capture-chrome';
 import { Screen } from '@/components/inspection-ui';
@@ -64,7 +64,8 @@ export default function CaptureScreen() {
         >
           <Animated.View
             key={step.id}
-            entering={FadeInDown.duration(320).springify().damping(20)}
+            entering={FadeIn.duration(220)}
+            exiting={FadeOut.duration(140)}
             style={styles.stepWrap}
           >
             <StepCapture step={step} />

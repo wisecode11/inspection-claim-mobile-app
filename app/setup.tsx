@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SlideToConfirm } from '@/components/slide-to-confirm';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
@@ -21,6 +22,7 @@ import { captureHref } from '@/lib/routes';
 const SetupBg = '#F4F7F8';
 const TextMuted = '#6B7B85';
 const LabelMuted = '#9AA8B0';
+const CONTENT_GUTTER = 16;
 function shortAddress(address: string) {
   const trimmed = address.trim();
   if (!trimmed) return '—';
@@ -302,13 +304,10 @@ export default function SetupScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <Pressable
-          style={({ pressed }) => [styles.startButton, pressed && styles.pressed]}
-          onPress={onContinue}
-        >
-          <Text style={styles.startButtonText}>Start 10-step inspection</Text>
-          <Ionicons color={Brand.surface} name="arrow-forward" size={17} />
-        </Pressable>
+        <SlideToConfirm
+          disabled={!data.address.trim() || !data.homeownerName.trim()}
+          onComplete={onContinue}
+        />
       </View>
     </View>
   );
@@ -319,7 +318,7 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingBottom: 20,
-    paddingHorizontal: 16,
+    paddingHorizontal: CONTENT_GUTTER,
     paddingTop: 4,
   },
   subtitle: {
@@ -404,20 +403,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     backgroundColor: SetupBg,
-    paddingHorizontal: 16,
-    paddingTop: 6,
+    paddingHorizontal: CONTENT_GUTTER,
+    paddingTop: 8,
   },
-  startButton: {
-    alignItems: 'center',
-    backgroundColor: Brand.accent,
-    borderRadius: Brand.buttonRadius,
-    flexDirection: 'row',
-    gap: 6,
-    justifyContent: 'center',
-    minHeight: 50,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  startButtonText: { color: Brand.surface, fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.92 },
 });

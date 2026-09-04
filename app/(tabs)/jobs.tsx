@@ -12,8 +12,6 @@ import {
 } from 'react-native';
 import Animated, {
   FadeIn,
-  FadeInDown,
-  FadeInUp,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -182,10 +180,7 @@ function JobListItem({ index, item, onOpen }: JobListItemProps) {
 
   return (
     <Animated.View
-      entering={FadeInUp.delay(Math.min(index * 80, 320))
-        .duration(480)
-        .springify()
-        .damping(18)}
+      entering={FadeIn.delay(Math.min(index * 40, 200)).duration(220)}
     >
       <Pressable
         onPress={onOpen}
@@ -305,7 +300,7 @@ export default function JobsScreen() {
     <SafeAreaView edges={['top']} style={styles.screen}>
       <SafeTopGuard color={HeroPrimary} />
       <View style={[styles.heroSection, { paddingTop: 12 }]}>
-        <Animated.View entering={FadeInDown.duration(420).springify()} style={styles.brandRow}>
+        <Animated.View entering={FadeIn.duration(220)} style={styles.brandRow}>
           <View style={styles.logo}>
             <Text style={styles.logoText}>R</Text>
           </View>
@@ -318,7 +313,7 @@ export default function JobsScreen() {
         </Animated.View>
 
         <Animated.View
-          entering={FadeInDown.delay(70).duration(420).springify()}
+          entering={FadeIn.delay(40).duration(220)}
           style={styles.welcomeBlock}
         >
           <Text style={styles.greeting}>{timeGreeting()},</Text>
@@ -383,7 +378,7 @@ export default function JobsScreen() {
           loading ? (
             <ActivityIndicator color={Brand.accent} style={styles.emptySpinner} />
           ) : (
-            <Animated.View entering={FadeInUp.duration(500).springify()} style={styles.empty}>
+            <Animated.View entering={FadeIn.duration(220)} style={styles.empty}>
               <View style={styles.emptyIcon}>
                 <Ionicons color={Brand.accent} name="clipboard-outline" size={28} />
               </View>

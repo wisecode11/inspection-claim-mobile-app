@@ -71,18 +71,7 @@ function AppShell() {
         <Stack.Screen
           name="property"
           options={{
-            title: 'Property Details',
-            headerStyle: {
-              backgroundColor: '#FFFFFF',
-            },
-            headerShadowVisible: true,
-            headerTitleAlign: 'center',
-            headerTitleStyle: { color: Brand.ink, fontSize: 17, fontWeight: '700' },
-            headerRight: () => (
-              <Pressable hitSlop={10} style={styles.headerMenuBtn}>
-                <Ionicons color={Brand.ink} name="ellipsis-vertical" size={20} />
-              </Pressable>
-            ),
+            headerShown: false,
           }}
         />
         <Stack.Screen

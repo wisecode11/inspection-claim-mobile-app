@@ -1,17 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Brand } from '@/constants/theme';
 import { useInspection } from '@/context/inspection-context';
-import { CAPTURE_STEPS, StepId } from '@/lib/capture-steps';
+import { CAPTURE_STEPS, prevStepId, StepId } from '@/lib/capture-steps';
+
+const HeroBg = Brand.accent;
+const HeroMuted = '#8FAEB8';
+const CapturedMint = '#64D2B1';
+const BackBtnBg = 'rgba(255,255,255,0.12)';
 
 type Props = {
   stepId: StepId;
   onSkip?: () => void;
 };
+
+function slotMatches(photoLabel: string, slot: string) {
+  return photoLabel === slot || photoLabel.startsWith(`${slot} (`);
+}
 
 export function CaptureChrome({ stepId, onSkip }: Props) {
   const router = useRouter();
@@ -20,73 +28,110 @@ export function CaptureChrome({ stepId, onSkip }: Props) {
   const step = CAPTURE_STEPS.find((entry) => entry.id === stepId);
   if (!step) return null;
 
+  const stepPhotos = data.photos.filter((photo) => photo.stepId === stepId);
+  let captured = 0;
+  let total = 0;
+
+  if (step.mode === 'slots' && step.slots?.length) {
+    total = step.slots.length;
+    captured = step.slots.filter((slot) =>
+      stepPhotos.some((photo) => slotMatches(photo.label, slot)),
+    ).length;
+  } else if ((step.mode === 'components' || step.mode === 'metal') && step.components?.length) {
+    total = step.components.length;
+    captured = step.components.filter((component) =>
+      stepPhotos.some(
+        (photo) =>
+          photo.component === component ||
+          photo.label === component ||
+          photo.label.startsWith(`${component} (`),
+      ),
+    ).length;
+  } else {
+    captured = stepPhotos.length;
+    total = 0;
+  }
+
+  const goToSetup = () => {
+    // Pop back to the existing Setup screen instead of stacking another one.
+    // replace() left [setup, setup] and made the header back bounce once.
+    if (router.canDismiss()) {
+      router.dismissTo('/setup');
+      return;
+    }
+    router.replace('/setup');
+  };
+
+  const goPreviousStep = () => {
+    const prev = prevStepId(stepId);
+    if (prev === 'setup') {
+      goToSetup();
+      return;
+    }
+    update({ currentStepId: prev });
+  };
+
+  const goSetup = () => {
+    goToSetup();
+  };
+
   const goSkip = () => {
     markStepComplete(stepId);
     onSkip?.();
   };
 
-  const selectStep = (id: StepId) => {
-    if (id === stepId) return;
-    requestAnimationFrame(() => {
-      update({ currentStepId: id });
-    });
-  };
-
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top }]}>
+    <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
       <View style={styles.navRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={12}
-          onPress={() => router.back()}
+          accessibilityLabel="Previous step"
+          hitSlop={8}
+          onPress={goPreviousStep}
           style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
         >
-          <Ionicons color={Brand.ink} name="chevron-back" size={24} />
+          <Ionicons color="#FFFFFF" name="chevron-back" size={20} />
         </Pressable>
 
-        <Animated.Text
-          key={stepId}
-          entering={FadeIn.duration(220)}
-          style={styles.navTitle}
-          numberOfLines={1}
-        >
-          Step {step.number} · {step.title}
-        </Animated.Text>
+        <Text style={styles.stepLabel}>
+          STEP {step.number} OF {CAPTURE_STEPS.length}
+        </Text>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Skip this step"
-          hitSlop={8}
-          onPress={goSkip}
-          style={({ pressed }) => [styles.skipBtn, pressed && styles.pressed]}
-        >
-          <Text style={styles.skipText}>Skip</Text>
-        </Pressable>
+        <View style={styles.navActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go to setup"
+            hitSlop={8}
+            onPress={goSetup}
+            style={({ pressed }) => [styles.setupBtn, pressed && styles.pressed]}
+          >
+            <Text style={styles.setupText}>Setup</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Skip this step"
+            hitSlop={8}
+            onPress={goSkip}
+            style={({ pressed }) => [styles.skipBtn, pressed && styles.pressed]}
+          >
+            <Text style={styles.skipText}>Skip</Text>
+          </Pressable>
+        </View>
       </View>
 
-      <View style={styles.progressTrack}>
-        {CAPTURE_STEPS.map((entry) => {
-          const done = data.completedSteps.includes(entry.id);
-          const active = entry.id === stepId;
-          return (
-            <Pressable
-              key={entry.id}
-              accessibilityRole="button"
-              accessibilityLabel={`${entry.title}${active ? ', current' : done ? ', completed' : ''}`}
-              onPress={() => selectStep(entry.id)}
-              style={styles.segmentHit}
-            >
-              <View
-                style={[
-                  styles.segment,
-                  done && !active && styles.segmentDone,
-                  active && styles.segmentActive,
-                ]}
-              />
-            </Pressable>
-          );
-        })}
+      <View style={styles.heroRow}>
+        <View style={styles.heroCopy}>
+          <Text style={styles.title}>{step.title}</Text>
+          <Text style={styles.subtitle}>{step.subtitle}</Text>
+        </View>
+
+        <View style={styles.capturedBox}>
+          <Text style={styles.capturedCount}>
+            {captured}
+            {total > 0 ? <Text style={styles.capturedTotal}>/{total}</Text> : null}
+          </Text>
+          <Text style={styles.capturedLabel}>CAPTURED</Text>
+        </View>
       </View>
     </View>
   );
@@ -94,62 +139,98 @@ export function CaptureChrome({ stepId, onSkip }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: Brand.background,
-    borderBottomColor: Brand.border,
-    borderBottomWidth: 1,
-    paddingBottom: 14,
-    paddingHorizontal: 16,
+    backgroundColor: HeroBg,
+    paddingBottom: 22,
+    paddingHorizontal: 20,
   },
   navRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 8,
-    paddingTop: 6,
+    justifyContent: 'space-between',
   },
   backBtn: {
     alignItems: 'center',
-    height: 40,
+    backgroundColor: BackBtnBg,
+    borderRadius: 10,
+    height: 36,
     justifyContent: 'center',
-    width: 40,
+    width: 36,
   },
-  navTitle: {
-    color: Brand.ink,
-    flex: 1,
-    fontSize: 16,
+  stepLabel: {
+    color: HeroMuted,
+    fontSize: 11,
     fontWeight: '700',
-    letterSpacing: -0.2,
-    textAlign: 'center',
+    letterSpacing: 1.2,
+  },
+  navActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 14,
+  },
+  setupBtn: {
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  setupText: {
+    color: HeroMuted,
+    fontSize: 15,
+    fontWeight: '600',
   },
   skipBtn: {
-    alignItems: 'flex-end',
     justifyContent: 'center',
-    minWidth: 40,
     paddingVertical: 8,
   },
   skipText: {
-    color: Brand.muted,
-    fontSize: 14,
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '600',
   },
-  pressed: { opacity: 0.65 },
-  progressTrack: {
+  heroRow: {
+    alignItems: 'flex-start',
     flexDirection: 'row',
-    gap: 4,
-    marginTop: 14,
+    gap: 12,
+    marginTop: 22,
   },
-  segmentHit: {
+  heroCopy: {
     flex: 1,
-    paddingVertical: 6,
+    minWidth: 0,
+    paddingRight: 8,
   },
-  segment: {
-    backgroundColor: '#DDE4E8',
-    borderRadius: 2,
-    height: 4,
+  title: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    lineHeight: 32,
   },
-  segmentDone: {
-    backgroundColor: Brand.ink,
+  subtitle: {
+    color: HeroMuted,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 18,
+    marginTop: 8,
   },
-  segmentActive: {
-    backgroundColor: Brand.accent,
+  capturedBox: {
+    alignItems: 'flex-end',
+    paddingTop: 2,
   },
+  capturedCount: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '800',
+    lineHeight: 32,
+  },
+  capturedTotal: {
+    color: HeroMuted,
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  capturedLabel: {
+    color: CapturedMint,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
+  pressed: { opacity: 0.7 },
 });

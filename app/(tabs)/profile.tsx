@@ -147,42 +147,43 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
       <SafeTopGuard color={HeroPrimary} />
-      <ScrollView
-        bounces
-        contentContainerStyle={styles.scrollContent}
-        contentInsetAdjustmentBehavior="never"
-        showsVerticalScrollIndicator={false}
-        style={styles.scrollView}
-      >
-        <View style={[styles.heroSection, { paddingTop: 8 }]}>
-          <View style={styles.topBar}>
-            <View style={styles.topBarSide} />
-            <Text style={styles.topBarTitle}>Profile</Text>
-            <Pressable
-              accessibilityRole="button"
-              hitSlop={10}
-              onPress={() => setLogoutOpen(true)}
-              style={styles.topBarSide}
-            >
-              <Ionicons color="#FFFFFF" name="log-out-outline" size={22} />
-            </Pressable>
-          </View>
 
-          <View style={styles.avatarRing}>
-            {user?.profile?.avatarUrl ? (
-              <Image source={{ uri: user.profile.avatarUrl }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-            )}
-          </View>
-
-          <Text style={styles.heroName}>{fullName}</Text>
-          <Text style={styles.heroRole}>{roleLabel}</Text>
+      <View style={[styles.heroSection, { paddingTop: 8 }]}>
+        <View style={styles.topBar}>
+          <View style={styles.topBarSide} />
+          <Text style={styles.topBarTitle}>Profile</Text>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={() => setLogoutOpen(true)}
+            style={styles.topBarSide}
+          >
+            <Ionicons color="#FFFFFF" name="log-out-outline" size={22} />
+          </Pressable>
         </View>
 
-        <View style={styles.bodySheet}>
+        <View style={styles.avatarRing}>
+          {user?.profile?.avatarUrl ? (
+            <Image source={{ uri: user.profile.avatarUrl }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.heroName}>{fullName}</Text>
+        <Text style={styles.heroRole}>{roleLabel}</Text>
+      </View>
+
+      <View style={styles.bodySheet}>
+        <ScrollView
+          bounces
+          contentContainerStyle={styles.scrollContent}
+          contentInsetAdjustmentBehavior="never"
+          showsVerticalScrollIndicator={false}
+          style={styles.scrollView}
+        >
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Inspector Information</Text>
             <InfoIconRow icon="mail-outline" label="Email Address" value={user?.email || ''} />
@@ -234,8 +235,8 @@ export default function ProfileScreen() {
           >
             <Text style={styles.logoutLinkText}>Log out</Text>
           </Pressable>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
 
       <Modal
         animationType="fade"
@@ -291,11 +292,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 32,
   },
   heroSection: {
     alignItems: 'center',
     backgroundColor: HeroPrimary,
-    paddingBottom: 36,
+    flexShrink: 0,
+    paddingBottom: 28,
     paddingHorizontal: 20,
   },
   topBar: {
@@ -357,9 +360,8 @@ const styles = StyleSheet.create({
     backgroundColor: BodyBg,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    flexGrow: 1,
-    minHeight: 420,
-    paddingBottom: 32,
+    flex: 1,
+    overflow: 'hidden',
     paddingHorizontal: 20,
     paddingTop: 24,
   },

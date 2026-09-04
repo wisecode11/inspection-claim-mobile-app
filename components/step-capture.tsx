@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -29,6 +30,10 @@ import {
 type Props = {
   step: CaptureStep;
 };
+
+function photoBelongsToSlot(photo: PhotoItem, slot: string) {
+  return photo.label === slot || photo.label.startsWith(`${slot} (`);
+}
 
 function photoCaption(photo: PhotoItem) {
   const parts = [photo.label];
@@ -59,42 +64,116 @@ function PhotoActionsMenu({
   onMove: (id: string) => void;
   onAnnotate?: (photo: PhotoItem) => void;
 }) {
-  const openMenu = () => {
-    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [];
+  const [open, setOpen] = useState(false);
 
-    if (onAnnotate) {
-      buttons.push({ text: 'Mark damage', onPress: () => onAnnotate(photo) });
-    }
-    if (showCover && onSetCover && !photo.isCover) {
-      buttons.push({ text: 'Set as cover', onPress: () => onSetCover(photo.id) });
-    }
-    if (index > 0) {
-      buttons.push({ text: 'Move up', onPress: () => onReorder(photo.id, 'up') });
-    }
-    if (index < total - 1) {
-      buttons.push({ text: 'Move down', onPress: () => onReorder(photo.id, 'down') });
-    }
-    buttons.push({ text: 'Move to step', onPress: () => onMove(photo.id) });
-    buttons.push({
-      text: 'Delete',
-      style: 'destructive',
-      onPress: () => onRemove(photo.id),
-    });
-    buttons.push({ text: 'Cancel', style: 'cancel' });
-
-    Alert.alert(photo.label, 'Choose an action', buttons);
+  const runAndClose = (action: () => void) => {
+    setOpen(false);
+    // Close modal first so Fabric doesn't fight the action sheet remount.
+    requestAnimationFrame(action);
   };
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Photo options"
-      hitSlop={8}
-      onPress={openMenu}
-      style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
-    >
-      <Ionicons color={Brand.muted} name="ellipsis-horizontal" size={18} />
-    </Pressable>
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Photo options"
+        hitSlop={8}
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
+      >
+        <Ionicons color={Brand.muted} name="ellipsis-horizontal" size={18} />
+      </Pressable>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={open}
+        onRequestClose={() => setOpen(false)}
+      >
+        <Pressable style={styles.photoModalBackdrop} onPress={() => setOpen(false)}>
+          <Pressable style={styles.photoModalCard} onPress={(event) => event.stopPropagation()}>
+            <View style={styles.photoModalHeader}>
+              <View style={styles.photoModalIcon}>
+                <Ionicons color={Brand.accent} name="image-outline" size={22} />
+              </View>
+              <View style={styles.photoModalCopy}>
+                <Text style={styles.photoModalTitle} numberOfLines={1}>
+                  {photo.label}
+                </Text>
+                <Text style={styles.photoModalHint}>Choose an action</Text>
+              </View>
+            </View>
+
+            {onAnnotate ? (
+              <Pressable
+                style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
+                onPress={() => runAndClose(() => onAnnotate(photo))}
+              >
+                <Ionicons color={Brand.ink} name="brush-outline" size={18} />
+                <Text style={styles.photoModalRowText}>Mark damage</Text>
+              </Pressable>
+            ) : null}
+
+            {showCover && onSetCover && !photo.isCover ? (
+              <Pressable
+                style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
+                onPress={() => runAndClose(() => onSetCover(photo.id))}
+              >
+                <Ionicons color={Brand.ink} name="star-outline" size={18} />
+                <Text style={styles.photoModalRowText}>Set as cover</Text>
+              </Pressable>
+            ) : null}
+
+            {index > 0 ? (
+              <Pressable
+                style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
+                onPress={() => runAndClose(() => onReorder(photo.id, 'up'))}
+              >
+                <Ionicons color={Brand.ink} name="arrow-up-outline" size={18} />
+                <Text style={styles.photoModalRowText}>Move up</Text>
+              </Pressable>
+            ) : null}
+
+            {index < total - 1 ? (
+              <Pressable
+                style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
+                onPress={() => runAndClose(() => onReorder(photo.id, 'down'))}
+              >
+                <Ionicons color={Brand.ink} name="arrow-down-outline" size={18} />
+                <Text style={styles.photoModalRowText}>Move down</Text>
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
+              onPress={() => runAndClose(() => onMove(photo.id))}
+            >
+              <Ionicons color={Brand.ink} name="swap-horizontal-outline" size={18} />
+              <Text style={styles.photoModalRowText}>Move to step</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.photoModalRow,
+                styles.photoModalRowDanger,
+                pressed && styles.menuBtnPressed,
+              ]}
+              onPress={() => runAndClose(() => onRemove(photo.id))}
+            >
+              <Ionicons color={Brand.danger} name="trash-outline" size={18} />
+              <Text style={[styles.photoModalRowText, styles.photoModalRowTextDanger]}>Delete photo</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [styles.photoModalCancel, pressed && styles.menuBtnPressed]}
+              onPress={() => setOpen(false)}
+            >
+              <Text style={styles.photoModalCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -221,22 +300,39 @@ function PhotoThumbnailGrid({
     <View style={styles.grid}>
       {photos.map((photo, index) => (
         <View key={photo.id} style={styles.photoWrap}>
-          <Pressable
-            onPress={() => {
-              if (onAnnotate) onAnnotate(photo);
-            }}
-            style={styles.photoTap}
-          >
-            <Image source={{ uri: photo.uri }} style={styles.photo} />
+          <View style={styles.photoTap}>
+            <Pressable
+              onPress={() => {
+                if (onAnnotate) onAnnotate(photo);
+              }}
+            >
+              <Image source={{ uri: photo.uri }} style={styles.photo} />
+            </Pressable>
             {showCover && photo.isCover ? (
               <View style={styles.coverBadge}>
                 <Text style={styles.coverBadgeText}>Cover</Text>
               </View>
             ) : null}
-            <View style={[styles.annotateBadge, minimal && styles.annotateBadgeMinimal]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Delete photo"
+              hitSlop={8}
+              onPress={() => onRemove(photo.id)}
+              style={({ pressed }) => [styles.deleteBadge, pressed && styles.menuBtnPressed]}
+            >
+              <Ionicons color="#FFFFFF" name="trash-outline" size={14} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Mark damage"
+              onPress={() => {
+                if (onAnnotate) onAnnotate(photo);
+              }}
+              style={[styles.annotateBadge, minimal && styles.annotateBadgeMinimal]}
+            >
               <Ionicons color="#FFFFFF" name="brush-outline" size={12} />
               {!minimal ? <Text style={styles.annotateBadgeText}>Mark</Text> : null}
-            </View>
+            </Pressable>
             {minimal ? (
               <View style={styles.photoMenuOverlay}>
                 <PhotoActionsMenu
@@ -252,7 +348,7 @@ function PhotoThumbnailGrid({
                 />
               </View>
             ) : null}
-          </Pressable>
+          </View>
           {!minimal ? (
             <View style={styles.photoMeta}>
               <Text style={styles.caption} numberOfLines={2}>
@@ -357,9 +453,9 @@ export function StepCapture({ step }: Props) {
   const [annotatingPhoto, setAnnotatingPhoto] = useState<PhotoItem | null>(null);
 
   const doneSlots = useMemo(() => {
-    if (step.mode !== 'slots') return new Set<string>();
-    return new Set(stepPhotos.map((photo) => photo.label));
-  }, [step.mode, stepPhotos]);
+    if (step.mode !== 'slots' || !step.slots) return new Set<string>();
+    return new Set(step.slots.filter((slot) => stepPhotos.some((photo) => photoBelongsToSlot(photo, slot))));
+  }, [step.mode, step.slots, stepPhotos]);
 
   const doneComponents = useMemo(() => {
     if (step.mode !== 'components' && step.mode !== 'metal') return new Set<string>();
@@ -372,7 +468,7 @@ export function StepCapture({ step }: Props) {
 
   const visiblePhotos = useMemo(() => {
     if (step.mode === 'slots' && activeSlot) {
-      return stepPhotos.filter((photo) => photo.label === activeSlot);
+      return stepPhotos.filter((photo) => photoBelongsToSlot(photo, activeSlot));
     }
     if ((step.mode === 'components' || step.mode === 'metal') && activeComponent) {
       return stepPhotos.filter(
@@ -481,7 +577,7 @@ export function StepCapture({ step }: Props) {
       const currentIndex = step.slots.indexOf(activeSlot);
       const nextEmpty = step.slots
         .slice(currentIndex + 1)
-        .find((slot) => !stepPhotos.some((photo) => photo.label === slot));
+        .find((slot) => !stepPhotos.some((photo) => photoBelongsToSlot(photo, slot)));
       if (nextEmpty) setActiveSlot(nextEmpty);
     }
 
@@ -637,8 +733,6 @@ export function StepCapture({ step }: Props) {
           </>
         ) : (
           <>
-        <Text style={styles.stepSubtitle}>{step.subtitle}</Text>
-
         {step.mode === 'slots' && step.slots ? (
           <SlotChipRow
             slots={step.slots}
@@ -893,7 +987,9 @@ export function StepCapture({ step }: Props) {
           // Spec rule: annotations save as a copy — never alter the original photo.
           addPhotos([uri], {
             stepId: annotatingPhoto.stepId,
-            label: `${annotatingPhoto.label} (annotated)`,
+            label: annotatingPhoto.label.endsWith(' (annotated)')
+              ? annotatingPhoto.label
+              : `${annotatingPhoto.label} (annotated)`,
             component: annotatingPhoto.component,
             elevation: annotatingPhoto.elevation,
             roofDirection: annotatingPhoto.roofDirection,
@@ -1171,6 +1267,18 @@ const styles = StyleSheet.create({
     top: 8,
   },
   coverBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  deleteBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(192, 57, 43, 0.92)',
+    borderRadius: 8,
+    height: 28,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 28,
+    zIndex: 4,
+  },
   annotateBadge: {
     alignItems: 'center',
     backgroundColor: 'rgba(27, 67, 50, 0.82)',
@@ -1210,6 +1318,83 @@ const styles = StyleSheet.create({
     width: 28,
   },
   menuBtnPressed: { opacity: 0.7 },
+  photoModalBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(19, 58, 66, 0.55)',
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  photoModalCard: {
+    backgroundColor: Brand.surface,
+    borderRadius: 22,
+    paddingBottom: 10,
+    paddingHorizontal: 14,
+    paddingTop: 16,
+    width: '100%',
+  },
+  photoModalHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 10,
+    paddingHorizontal: 6,
+  },
+  photoModalIcon: {
+    alignItems: 'center',
+    backgroundColor: Brand.accentLight,
+    borderRadius: 14,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  photoModalCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  photoModalTitle: {
+    color: Brand.ink,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  photoModalHint: {
+    color: Brand.muted,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  photoModalRow: {
+    alignItems: 'center',
+    borderRadius: 12,
+    flexDirection: 'row',
+    gap: 12,
+    minHeight: 48,
+    paddingHorizontal: 10,
+  },
+  photoModalRowDanger: {
+    backgroundColor: '#FDF2F0',
+    marginTop: 4,
+  },
+  photoModalRowText: {
+    color: Brand.ink,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  photoModalRowTextDanger: {
+    color: Brand.danger,
+  },
+  photoModalCancel: {
+    alignItems: 'center',
+    backgroundColor: Brand.background,
+    borderRadius: Brand.buttonRadiusLg,
+    marginTop: 10,
+    paddingVertical: 14,
+  },
+  photoModalCancelText: {
+    color: Brand.ink,
+    fontSize: 15,
+    fontWeight: '800',
+  },
   listCard: { backgroundColor: '#FFFFFF', borderRadius: 14, overflow: 'hidden' },
   listRow: {
     alignItems: 'center',

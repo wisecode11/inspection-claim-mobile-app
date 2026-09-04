@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { LocationMap } from '@/components/location-map';
 import { Brand } from '@/constants/theme';
@@ -18,17 +20,11 @@ import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
 import { confirmJobLocation, formatLatitude, formatLongitude } from '@/lib/api';
 
-const PageBg = '#F4F7F8';
+const HeroPrimary = Brand.accent;
+const BodyBg = Brand.sheetBg;
 const LabelMuted = '#9AA8B0';
 const ConfirmedGreen = '#1B5E20';
-
-const cardShadow = {
-  elevation: 3,
-  shadowColor: '#133A42',
-  shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: 0.08,
-  shadowRadius: 10,
-};
+const MAP_OVERLAP = 28;
 
 function formatAddressDisplay(address: string) {
   const parts = address
@@ -50,15 +46,13 @@ function DetailRow({
   icon,
   label,
   value,
-  last = false,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string;
-  last?: boolean;
 }) {
   return (
-    <View style={[styles.detailRow, !last && styles.detailRowBorder]}>
+    <View style={styles.detailRow}>
       <View style={styles.detailIcon}>
         <Ionicons color="#5C6F78" name={icon} size={17} />
       </View>
@@ -68,6 +62,10 @@ function DetailRow({
       </View>
     </View>
   );
+}
+
+function RowDivider() {
+  return <View style={styles.rowDivider} />;
 }
 
 export default function PropertyScreen() {
@@ -80,6 +78,7 @@ export default function PropertyScreen() {
     longitude: data.longitude,
   });
   const [saving, setSaving] = useState(false);
+  const [confirmedOpen, setConfirmedOpen] = useState(false);
 
   useEffect(() => {
     setPin({ latitude: data.latitude, longitude: data.longitude });
@@ -115,7 +114,7 @@ export default function PropertyScreen() {
         longitude: job.longitude ?? pinLng,
         locationConfirmed: true,
       });
-      Alert.alert('Location confirmed', 'This pin will be used for the inspection.');
+      setConfirmedOpen(true);
     } catch (error) {
       Alert.alert('Could not confirm', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -133,12 +132,71 @@ export default function PropertyScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.propertyCard}>
+      <View style={styles.mapHero}>
+        {hasCoords ? (
+          <LocationMap
+            key={data.jobId}
+            hero
+            initialLatitude={data.latitude!}
+            initialLongitude={data.longitude!}
+            onMove={(coords) => {
+              setPin(coords);
+              update({ locationConfirmed: false });
+            }}
+          />
+        ) : (
+          <View style={styles.mapFallback}>
+            <Ionicons color={Brand.muted} name="map-outline" size={36} />
+            <Text style={styles.fallbackTitle}>Address not mapped</Text>
+            <Text style={styles.fallbackText}>
+              {data.geocodeError ||
+                'Use a real street address when creating the job so latitude and longitude can be filled automatically.'}
+            </Text>
+          </View>
+        )}
+
+        <View
+          pointerEvents="none"
+          style={[styles.headerFade, { height: insets.top + 104 }]}
+        >
+          <Svg height="100%" width="100%">
+            <Defs>
+              <LinearGradient id="propertyHeaderFade" x1="0" x2="0" y1="0" y2="1">
+                <Stop offset="0" stopColor={HeroPrimary} stopOpacity="0.92" />
+                <Stop offset="0.42" stopColor={HeroPrimary} stopOpacity="0.62" />
+                <Stop offset="0.72" stopColor={HeroPrimary} stopOpacity="0.28" />
+                <Stop offset="1" stopColor={HeroPrimary} stopOpacity="0" />
+              </LinearGradient>
+            </Defs>
+            <Rect fill="url(#propertyHeaderFade)" height="100%" width="100%" />
+          </Svg>
+        </View>
+        <View style={[styles.headerOverlay, { paddingTop: insets.top + 8 }]}>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={() => router.back()}
+            style={styles.headerBtn}
+          >
+            <Ionicons color="#FFFFFF" name="chevron-back" size={22} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Property Details</Text>
+          <Pressable accessibilityRole="button" hitSlop={10} style={styles.headerBtn}>
+            <Ionicons color="#FFFFFF" name="ellipsis-vertical" size={20} />
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={[styles.bodySheet, { marginTop: -MAP_OVERLAP }]}>
+        <View style={styles.sheetHandle} />
+
+        <ScrollView
+          bounces={false}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={styles.scrollView}
+        >
           <View style={styles.addressBlock}>
             <View style={styles.addressTopRow}>
               <Text numberOfLines={2} style={styles.streetLine}>
@@ -155,89 +213,179 @@ export default function PropertyScreen() {
               </View>
             </View>
             {addressLines.secondary ? (
-              <Text numberOfLines={2} style={styles.cityLine}>
+              <Text numberOfLines={3} style={styles.cityLine}>
                 {addressLines.secondary}
+              </Text>
+            ) : data.address && data.address.trim() !== addressLines.primary ? (
+              <Text numberOfLines={3} style={styles.cityLine}>
+                {data.address}
               </Text>
             ) : null}
           </View>
 
-          <View style={styles.mapDivider} />
-
-          {typeof data.latitude === 'number' && typeof data.longitude === 'number' ? (
-            <LocationMap
-              key={data.jobId}
-              embedded
-              initialLatitude={data.latitude}
-              initialLongitude={data.longitude}
-              onMove={(coords) => {
-                setPin(coords);
-                update({ locationConfirmed: false });
-              }}
+          <View style={styles.detailsCard}>
+            <DetailRow icon="person-outline" label="CUSTOMER" value={data.customer || '—'} />
+            <RowDivider />
+            <DetailRow icon="compass-outline" label="COORDINATES" value={coordinates} />
+            <RowDivider />
+            <DetailRow
+              icon="document-text-outline"
+              label="CLAIM"
+              value={data.claimNumber || '—'}
             />
-          ) : (
-            <View style={styles.mapFallback}>
-              <Ionicons color={Brand.muted} name="map-outline" size={32} />
-              <Text style={styles.fallbackTitle}>Address not mapped</Text>
-              <Text style={styles.fallbackText}>
-                {data.geocodeError ||
-                  'Use a real street address when creating the job so latitude and longitude can be filled automatically.'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.detailsCard}>
-          <View style={styles.detailsHeader}>
-            <Text style={styles.sectionTitle}>Inspection details</Text>
           </View>
-          <DetailRow icon="person-outline" label="CUSTOMER" value={data.customer || '—'} />
-          <DetailRow icon="compass-outline" label="COORDINATES" value={coordinates} />
-          <DetailRow icon="document-text-outline" label="CLAIM" value={data.claimNumber || '—'} last />
+        </ScrollView>
+
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <Pressable
+            disabled={saving}
+            onPress={() => void onConfirm()}
+            style={({ pressed }) => [styles.confirmButton, pressed && styles.pressed]}
+          >
+            {saving ? (
+              <ActivityIndicator color={HeroPrimary} />
+            ) : (
+              <>
+                <Ionicons color={HeroPrimary} name="checkmark-circle-outline" size={19} />
+                <Text style={styles.confirmText}>Confirm location</Text>
+              </>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={onStart}
+            style={({ pressed }) => [styles.startButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.startButtonText}>Start inspection</Text>
+            <Ionicons color="#FFFFFF" name="chevron-forward" size={18} />
+          </Pressable>
         </View>
-      </ScrollView>
-
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <Pressable
-          disabled={saving}
-          style={({ pressed }) => [styles.confirmButton, pressed && styles.pressed]}
-          onPress={() => void onConfirm()}
-        >
-          {saving ? (
-            <ActivityIndicator color={Brand.ink} />
-          ) : (
-            <>
-              <Ionicons color={Brand.ink} name="checkmark-circle-outline" size={19} />
-              <Text style={styles.confirmText}>Confirm location</Text>
-            </>
-          )}
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [styles.startButton, pressed && styles.pressed]}
-          onPress={onStart}
-        >
-          <Text style={styles.startButtonText}>Start inspection</Text>
-          <Ionicons color={Brand.surface} name="arrow-forward" size={18} />
-        </Pressable>
       </View>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={confirmedOpen}
+        onRequestClose={() => setConfirmedOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIcon}>
+              <Ionicons color={ConfirmedGreen} name="checkmark-circle" size={30} />
+            </View>
+            <Text style={styles.modalTitle}>Location confirmed</Text>
+            <Text style={styles.modalCopy}>
+              This pin will be used for the inspection. You can start when you are ready.
+            </Text>
+            <Pressable
+              onPress={() => setConfirmedOpen(false)}
+              style={({ pressed }) => [styles.modalButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.modalButtonText}>Got it</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { backgroundColor: PageBg, flex: 1 },
-  scroll: { flexGrow: 1, paddingBottom: 24, paddingHorizontal: 16, paddingTop: 12 },
-  propertyCard: {
-    backgroundColor: Brand.surface,
-    borderRadius: 16,
-    marginBottom: 14,
-    overflow: 'hidden',
-    ...cardShadow,
+  screen: {
+    backgroundColor: BodyBg,
+    flex: 1,
+  },
+  mapHero: {
+    height: '42%',
+    minHeight: 280,
+    position: 'relative',
+  },
+  mapFallback: {
+    alignItems: 'center',
+    backgroundColor: '#DDECEE',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+  fallbackTitle: {
+    color: HeroPrimary,
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 12,
+  },
+  fallbackText: {
+    color: Brand.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  headerFade: {
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 5,
+  },
+  headerOverlay: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    left: 0,
+    paddingHorizontal: 16,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 10,
+  },
+  headerBtn: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    borderRadius: 20,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  bodySheet: {
+    backgroundColor: BodyBg,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    elevation: 8,
+    flex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    backgroundColor: '#D1C9BE',
+    borderRadius: 3,
+    height: 4,
+    marginBottom: 20,
+    marginTop: 12,
+    width: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 8,
+    paddingHorizontal: 20,
   },
   addressBlock: {
-    paddingBottom: 14,
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    marginBottom: 18,
   },
   addressTopRow: {
     alignItems: 'flex-start',
@@ -246,19 +394,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   streetLine: {
-    color: Brand.ink,
+    color: HeroPrimary,
     flex: 1,
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: -0.4,
-    lineHeight: 23,
+    letterSpacing: -0.5,
+    lineHeight: 28,
   },
   cityLine: {
     color: '#6B7B85',
     fontSize: 13,
     fontWeight: '400',
-    lineHeight: 19,
-    marginTop: 6,
+    lineHeight: 20,
+    marginTop: 8,
   },
   statusBadge: {
     alignItems: 'center',
@@ -266,12 +414,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexShrink: 0,
     gap: 5,
-    marginTop: 2,
+    marginTop: 4,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  statusConfirmed: { backgroundColor: ConfirmedGreen },
-  statusPending: { backgroundColor: Brand.accent },
+  statusConfirmed: {
+    backgroundColor: ConfirmedGreen,
+  },
+  statusPending: {
+    backgroundColor: HeroPrimary,
+  },
   statusDot: {
     backgroundColor: '#FFFFFF',
     borderRadius: 3,
@@ -284,35 +436,17 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
-  mapDivider: {
-    backgroundColor: '#EEF1F3',
-    height: StyleSheet.hairlineWidth,
-  },
-  mapFallback: {
-    alignItems: 'center',
-    height: 260,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  fallbackTitle: { color: Brand.ink, fontSize: 16, fontWeight: '700' },
-  fallbackText: { color: Brand.muted, fontSize: 14, lineHeight: 20, marginTop: 8, textAlign: 'center' },
   detailsCard: {
-    backgroundColor: Brand.surface,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#EBE6DF',
     borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    elevation: 1,
     overflow: 'hidden',
-    ...cardShadow,
-  },
-  detailsHeader: {
-    borderBottomColor: '#EEF1F3',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-  },
-  sectionTitle: {
-    color: Brand.ink,
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: -0.2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
   detailRow: {
     alignItems: 'center',
@@ -321,19 +455,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 15,
   },
-  detailRowBorder: {
-    borderBottomColor: '#EEF1F3',
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  rowDivider: {
+    backgroundColor: '#E5E0D8',
+    height: 1,
+    marginHorizontal: 16,
   },
   detailIcon: {
     alignItems: 'center',
     backgroundColor: '#F0F3F5',
-    borderRadius: 20,
+    borderRadius: 10,
     height: 40,
     justifyContent: 'center',
     width: 40,
   },
-  detailCopy: { flex: 1, minWidth: 0 },
+  detailCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   detailLabel: {
     color: LabelMuted,
     fontSize: 10,
@@ -341,23 +479,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
   },
   detailValue: {
-    color: Brand.ink,
+    color: HeroPrimary,
     fontSize: 15,
     fontWeight: '700',
     lineHeight: 21,
     marginTop: 3,
   },
   footer: {
-    backgroundColor: PageBg,
+    backgroundColor: BodyBg,
     gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
   confirmButton: {
     alignItems: 'center',
-    backgroundColor: Brand.surface,
-    borderColor: Brand.ink,
-    borderRadius: Brand.buttonRadius,
+    backgroundColor: '#FFFFFF',
+    borderColor: HeroPrimary,
+    borderRadius: Brand.buttonRadiusLg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 8,
@@ -365,17 +503,75 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingVertical: 14,
   },
-  confirmText: { color: Brand.ink, fontSize: 15, fontWeight: '700' },
+  confirmText: {
+    color: HeroPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+  },
   startButton: {
     alignItems: 'center',
-    backgroundColor: Brand.accent,
-    borderRadius: Brand.buttonRadius,
+    backgroundColor: HeroPrimary,
+    borderRadius: Brand.buttonRadiusLg,
     flexDirection: 'row',
-    gap: 8,
+    gap: 4,
     justifyContent: 'center',
     minHeight: 50,
     paddingVertical: 14,
   },
-  startButtonText: { color: Brand.surface, fontSize: 15, fontWeight: '700' },
-  pressed: { opacity: 0.92 },
+  startButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  pressed: {
+    opacity: 0.92,
+  },
+  modalBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(19, 58, 66, 0.55)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: Brand.surface,
+    borderRadius: 22,
+    padding: 22,
+    width: '100%',
+  },
+  modalIcon: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(27, 94, 32, 0.12)',
+    borderRadius: 18,
+    height: 56,
+    justifyContent: 'center',
+    marginBottom: 14,
+    width: 56,
+  },
+  modalTitle: {
+    color: Brand.ink,
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  modalCopy: {
+    color: Brand.muted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  modalButton: {
+    alignItems: 'center',
+    backgroundColor: HeroPrimary,
+    borderRadius: Brand.buttonRadiusLg,
+    marginTop: 22,
+    paddingVertical: 14,
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
 });

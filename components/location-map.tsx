@@ -9,10 +9,17 @@ type LocationMapProps = {
   initialLatitude: number;
   initialLongitude: number;
   embedded?: boolean;
+  hero?: boolean;
   onMove: (coords: { latitude: number; longitude: number }) => void;
 };
 
-export function LocationMap({ initialLatitude, initialLongitude, embedded = false, onMove }: LocationMapProps) {
+export function LocationMap({
+  initialLatitude,
+  initialLongitude,
+  embedded = false,
+  hero = false,
+  onMove,
+}: LocationMapProps) {
   const html = useMemo(
     () => `<!DOCTYPE html>
 <html>
@@ -31,6 +38,15 @@ export function LocationMap({ initialLatitude, initialLongitude, embedded = fals
         height: 30px !important;
         line-height: 30px !important;
         width: 30px !important;
+      }
+      ${
+        hero
+          ? `
+      .leaflet-bottom.leaflet-right {
+        bottom: 18px !important;
+        right: 14px !important;
+      }`
+          : ''
       }
       .custom-pin {
         background: transparent;
@@ -66,7 +82,8 @@ export function LocationMap({ initialLatitude, initialLongitude, embedded = fals
     <script>
       const lat = ${Number(initialLatitude)};
       const lng = ${Number(initialLongitude)};
-      const map = L.map('map', { zoomControl: true }).setView([lat, lng], 17);
+      const map = L.map('map', { zoomControl: false }).setView([lat, lng], 17);
+      L.control.zoom({ position: '${hero ? 'bottomright' : 'topleft'}' }).addTo(map);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap'
@@ -97,7 +114,7 @@ export function LocationMap({ initialLatitude, initialLongitude, embedded = fals
     </script>
   </body>
 </html>`,
-    [initialLatitude, initialLongitude],
+    [hero, initialLatitude, initialLongitude],
   );
 
   const onMessage = (event: WebViewMessageEvent) => {
@@ -112,7 +129,7 @@ export function LocationMap({ initialLatitude, initialLongitude, embedded = fals
   };
 
   return (
-    <View style={[styles.wrap, embedded && styles.wrapEmbedded]}>
+    <View style={[styles.wrap, embedded && styles.wrapEmbedded, hero && styles.wrapHero]}>
       <WebView
         originWhitelist={['*']}
         source={{ html }}
@@ -121,10 +138,12 @@ export function LocationMap({ initialLatitude, initialLongitude, embedded = fals
         javaScriptEnabled
         scrollEnabled={false}
       />
-      {embedded ? (
-        <View pointerEvents="none" style={styles.hintPill}>
-          <Ionicons color="#FFFFFF" name="hand-left-outline" size={13} />
-          <Text style={styles.hintText}>Drag pin to adjust location</Text>
+      {embedded || hero ? (
+        <View pointerEvents="none" style={[styles.hintPill, hero && styles.hintPillHero]}>
+          {hero ? null : <Ionicons color="#FFFFFF" name="hand-left-outline" size={13} />}
+          <Text style={styles.hintText}>
+            {hero ? 'Drag pin to adjust' : 'Drag pin to adjust location'}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -151,6 +170,14 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     shadowOpacity: 0,
   },
+  wrapHero: {
+    borderRadius: 0,
+    borderWidth: 0,
+    flex: 1,
+    height: undefined,
+    marginBottom: 0,
+    shadowOpacity: 0,
+  },
   map: { flex: 1, backgroundColor: '#DDECEE' },
   hintPill: {
     alignItems: 'center',
@@ -163,6 +190,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     position: 'absolute',
+  },
+  hintPillHero: {
+    bottom: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   hintText: {
     color: '#FFFFFF',

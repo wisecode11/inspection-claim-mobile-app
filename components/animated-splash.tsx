@@ -3,17 +3,13 @@ import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
-  FadeInDown,
-  FadeInUp,
   interpolate,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
   withRepeat,
   withSequence,
-  withSpring,
   withTiming,
-  ZoomIn,
 } from 'react-native-reanimated';
 
 import { Brand } from '@/constants/theme';
@@ -24,13 +20,13 @@ type AnimatedSplashProps = {
 };
 
 export function AnimatedSplash({ exiting = false }: AnimatedSplashProps) {
-  const logoScale = useSharedValue(0.72);
+  const logoScale = useSharedValue(0.92);
   const logoGlow = useSharedValue(0);
   const barProgress = useSharedValue(0);
   const screenOpacity = useSharedValue(1);
 
   useEffect(() => {
-    logoScale.value = withSpring(1, { damping: 12, stiffness: 140 });
+    logoScale.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
     logoGlow.value = withDelay(
       280,
       withRepeat(
@@ -89,24 +85,24 @@ export function AnimatedSplash({ exiting = false }: AnimatedSplashProps) {
       <View style={styles.center}>
         <View style={styles.logoWrap}>
           <Animated.View style={[styles.ring, ringStyle]} />
-          <Animated.View entering={ZoomIn.duration(520).springify()} style={[styles.logo, logoStyle]}>
+          <Animated.View entering={FadeIn.duration(280)} style={[styles.logo, logoStyle]}>
             <Text style={styles.logoMark}>⌂</Text>
           </Animated.View>
         </View>
 
-        <Animated.Text entering={FadeInDown.delay(180).duration(480)} style={styles.title}>
+        <Animated.Text entering={FadeIn.delay(120).duration(280)} style={styles.title}>
           RoofCheck
         </Animated.Text>
-        <Animated.Text entering={FadeInUp.delay(320).duration(480)} style={styles.subtitle}>
+        <Animated.Text entering={FadeIn.delay(180).duration(280)} style={styles.subtitle}>
           Inspection workspace
         </Animated.Text>
 
-        <Animated.View entering={FadeIn.delay(520).duration(400)} style={styles.barTrack}>
+        <Animated.View entering={FadeIn.delay(240).duration(280)} style={styles.barTrack}>
           <Animated.View style={[styles.barFill, barStyle]} />
         </Animated.View>
       </View>
 
-      <Animated.Text entering={FadeIn.delay(700).duration(450)} style={styles.footer}>
+      <Animated.Text entering={FadeIn.delay(300).duration(280)} style={styles.footer}>
         Field inspections made simple
       </Animated.Text>
     </Animated.View>
