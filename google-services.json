@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "148783880571",
+    "project_id": "roof-inspection-507616",
+    "storage_bucket": "roof-inspection-507616.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:148783880571:android:c5610a6465626cd16485de",
+        "android_client_info": {
+          "package_name": "com.devwisecodesteam.claimcapture"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCF4h5dIptQjNOK2SGKNmpYpRDbHyMwXqw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

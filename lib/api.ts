@@ -629,3 +629,43 @@ export function jobDateLabel(job: InspectionJob): string {
 
   return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
 }
+export async function registerPushTokenWithApi(
+  token: string,
+  body: {
+    deviceId: string;
+    platform: 'ios' | 'android';
+    pushToken: string;
+    pushEnabled?: boolean;
+    appVersion?: string;
+    osVersion?: string;
+    name?: string;
+  }
+): Promise<void> {
+  await requestJson('/api/devices/push-token', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updatePushPreferenceWithApi(
+  token: string,
+  body: { deviceId: string; pushEnabled: boolean }
+): Promise<void> {
+  await requestJson('/api/devices/push-preference', {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  });
+}
+
+export async function clearPushTokenWithApi(
+  token: string,
+  body: { deviceId: string }
+): Promise<void> {
+  await requestJson('/api/devices/push-token/clear', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(body),
+  });
+}

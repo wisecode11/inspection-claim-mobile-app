@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
 import { Stack, usePathname, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -13,6 +14,7 @@ import { AppErrorBoundary } from '@/components/app-error-boundary';
 import { Brand } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { InspectionProvider } from '@/context/inspection-context';
+import { ensureAndroidChannel } from '@/lib/push-notifications';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Native splash may already be hidden in some environments.
@@ -32,6 +34,39 @@ function AppShell() {
   useEffect(() => {
     void SplashScreen.hideAsync();
   }, []);
+
+  useEffect(() => {
+    void ensureAndroidChannel().catch(() => undefined);
+  }, []);
+
+  const handledResponse = useRef(false);
+
+  useEffect(() => {
+    if (!token || showSplash) return;
+
+    const goJobs = () => {
+      router.push('/(tabs)/jobs');
+    };
+
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as { type?: string } | undefined;
+      if (data?.type === 'job_assigned') {
+        goJobs();
+      }
+    });
+
+    if (!handledResponse.current) {
+      handledResponse.current = true;
+      void Notifications.getLastNotificationResponseAsync().then((response) => {
+        const data = response?.notification.request.content.data as { type?: string } | undefined;
+        if (data?.type === 'job_assigned') {
+          goJobs();
+        }
+      });
+    }
+
+    return () => sub.remove();
+  }, [token, showSplash, router]);
 
   useEffect(() => {
     const timer = setTimeout(() => setMinTimeDone(true), SPLASH_MIN_MS);

@@ -1,6 +1,6 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 
-import { AuthCompany, AuthUser, loginWithApi } from '@/lib/api';
+import { AuthCompany, AuthUser, clearPushTokenWithApi, loginWithApi } from '@/lib/api';
 import { clearCachedJobs } from '@/lib/jobs-storage';
 import {
   clearSession,
@@ -8,6 +8,8 @@ import {
   loadSession,
   saveSession,
 } from '@/lib/auth-storage';
+import { getStableDeviceId } from '@/lib/device-id';
+import { syncPushRegistration } from '@/lib/push-notifications';
 
 type AuthContextValue = {
   isReady: boolean;
@@ -39,6 +41,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
     void restore();
   }, []);
 
+  useEffect(() => {
+    if (!token) return;
+    void syncPushRegistration(token).catch((error) => {
+      console.warn('[push] registration failed', error);
+    });
+  }, [token]);
+
   const login = async (email: string, password: string) => {
     const data = await loginWithApi(email, password);
     await saveSession({
@@ -54,6 +63,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const logout = async () => {
     try {
+      if (token) {
+        const deviceId = await getStableDeviceId();
+        await clearPushTokenWithApi(token, { deviceId }).catch(() => undefined);
+      }
       await clearSession();
       await clearCachedJobs();
     } finally {

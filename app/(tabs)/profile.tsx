@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CommonActions } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { useNavigation } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -18,6 +18,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { updatePushPreferenceWithApi } from '@/lib/api';
+import { getStableDeviceId } from '@/lib/device-id';
+import { loadPushPrefs, savePushPrefs } from '@/lib/push-prefs';
+import { syncPushRegistration } from '@/lib/push-notifications';
 
 const HeroPrimary = Brand.accent;
 const HeroTextMuted = '#8FAEB8';
@@ -110,12 +114,38 @@ function PreferenceRow({
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
-  const { user, company, companyName, logout } = useAuth();
+  const { user, company, companyName, logout, token } = useAuth();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [pushNotifications, setPushNotifications] = useState(true);
+  const [pushBusy, setPushBusy] = useState(false);
   const [locationServices, setLocationServices] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    void loadPushPrefs().then((prefs) => setPushNotifications(prefs.enabled));
+  }, []);
+
+  const onTogglePush = async (next: boolean) => {
+    setPushNotifications(next);
+    setPushBusy(true);
+    try {
+      await savePushPrefs({ enabled: next });
+      if (!token) return;
+      const deviceId = await getStableDeviceId();
+      if (next) {
+        await syncPushRegistration(token);
+      } else {
+        try {
+          await updatePushPreferenceWithApi(token, { deviceId, pushEnabled: false });
+        } catch {
+          // Device may not be registered yet — local preference is enough.
+        }
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const firstName = user?.profile?.firstName?.trim() || '';
   const lastName = user?.profile?.lastName?.trim() || '';
@@ -209,7 +239,9 @@ export default function ProfileScreen() {
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Preferences</Text>
             <PreferenceRow
-              onValueChange={setPushNotifications}
+              onValueChange={(next) => {
+                if (!pushBusy) void onTogglePush(next);
+              }}
               subtitle="Alerts for new job assignments."
               title="Push Notifications"
               value={pushNotifications}
