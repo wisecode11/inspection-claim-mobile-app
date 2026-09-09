@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CommonActions } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { useNavigation } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Modal,
   Pressable,
@@ -13,7 +14,18 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Circle } from 'react-native-svg';
 
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
@@ -26,6 +38,17 @@ import { syncPushRegistration } from '@/lib/push-notifications';
 const HeroPrimary = Brand.accent;
 const HeroTextMuted = '#8FAEB8';
 const BodyBg = Brand.sheetBg;
+const PulseBlue = 'rgba(181,203,211,0.5)';
+const StatusBlue = "#32CD32";
+const StatusText = '#8FAEB8';
+const GlowBlue = '181,203,211';
+
+const AVATAR_SIZE = 88;
+const RING_SIZE = 104;
+const ARC_SIZE = AVATAR_SIZE - 16;
+const PULSE_MS = 3200;
+const ROTATE_MS = 6000;
+const DRIFT_MS = 9000;
 
 function formatRole(role?: string) {
   if (!role) return 'Field Inspector';
@@ -51,7 +74,7 @@ function InfoIconRow({
   return (
     <View style={[styles.infoRow, last && styles.infoRowLast]}>
       <View style={styles.infoIconWrap}>
-        <Ionicons color={HeroPrimary} name={icon} size={18} />
+        <Ionicons color={Brand.accent} name={icon} size={18} />
       </View>
       <View style={styles.infoCopy}>
         <Text style={styles.infoLabel}>{label}</Text>
@@ -105,10 +128,192 @@ function PreferenceRow({
       <Switch
         onValueChange={onValueChange}
         thumbColor="#FFFFFF"
-        trackColor={{ false: '#D8E0E4', true: HeroPrimary }}
+        trackColor={{ false: '#D8E0E4', true: Brand.accent }}
         value={value}
       />
     </View>
+  );
+}
+
+function StatusDotBlink({ active }: { active: boolean }) {
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimation(opacity);
+      opacity.value = 1;
+      return;
+    }
+
+    // Full blink cycle ≈ 2s
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 200 }),
+        withTiming(0.2, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 200 }),
+      ),
+      -1,
+      false,
+    );
+
+    return () => {
+      cancelAnimation(opacity);
+    };
+  }, [active, opacity]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <View style={styles.statusHalo}>
+      <Animated.View style={[styles.statusDot, style]} />
+    </View>
+  );
+}
+
+function PulseRing({ delayMs, active }: { delayMs: number; active: boolean }) {
+  const scale = useSharedValue(0.85);
+  const opacity = useSharedValue(0.55);
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimation(scale);
+      cancelAnimation(opacity);
+      scale.value = 0.85;
+      opacity.value = 0;
+      return;
+    }
+
+    scale.value = 0.85;
+    opacity.value = 0.55;
+    const ease = Easing.out(Easing.cubic);
+    scale.value = withDelay(
+      delayMs,
+      withRepeat(withTiming(1.45, { duration: PULSE_MS, easing: ease }), -1, false),
+    );
+    opacity.value = withDelay(
+      delayMs,
+      withRepeat(withTiming(0, { duration: PULSE_MS, easing: ease }), -1, false),
+    );
+
+    return () => {
+      cancelAnimation(scale);
+      cancelAnimation(opacity);
+    };
+  }, [active, delayMs, opacity, scale]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Animated.View
+      importantForAccessibility="no"
+      pointerEvents="none"
+      style={[styles.pulseRing, style]}
+    />
+  );
+}
+
+function RotatingArc({ active }: { active: boolean }) {
+  const rotation = useSharedValue(0);
+  const stroke = 1.5;
+  const radius = (ARC_SIZE - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const arcLength = circumference * 0.45;
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimation(rotation);
+      rotation.value = 0;
+      return;
+    }
+
+    rotation.value = 0;
+    rotation.value = withRepeat(
+      withTiming(360, { duration: ROTATE_MS, easing: Easing.linear }),
+      -1,
+      false,
+    );
+
+    return () => {
+      cancelAnimation(rotation);
+    };
+  }, [active, rotation]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  return (
+    <Animated.View
+      importantForAccessibility="no"
+      pointerEvents="none"
+      style={[styles.rotatingArc, style]}
+    >
+      <Svg height={ARC_SIZE} width={ARC_SIZE}>
+        <Circle
+          cx={ARC_SIZE / 2}
+          cy={ARC_SIZE / 2}
+          fill="none"
+          r={radius}
+          stroke={`rgba(${GlowBlue},0.35)`}
+          strokeDasharray={`${arcLength} ${circumference - arcLength}`}
+          strokeLinecap="round"
+          strokeWidth={stroke}
+        />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+function AmbientGlow({ active }: { active: boolean }) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimation(progress);
+      progress.value = 0;
+      return;
+    }
+
+    const ease = Easing.inOut(Easing.ease);
+    progress.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: DRIFT_MS / 2, easing: ease }),
+        withTiming(0, { duration: DRIFT_MS / 2, easing: ease }),
+      ),
+      -1,
+      false,
+    );
+
+    return () => {
+      cancelAnimation(progress);
+    };
+  }, [active, progress]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: progress.value * 14 },
+      { translateY: progress.value * -10 },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      importantForAccessibility="no"
+      pointerEvents="none"
+      style={[styles.ambientGlow, style]}
+    >
+      <View style={styles.ambientGlowCore}>
+        <View style={styles.ambientGlowOuter} />
+        <View style={styles.ambientGlowMid} />
+        <View style={styles.ambientGlowInner} />
+      </View>
+    </Animated.View>
   );
 }
 
@@ -121,10 +326,33 @@ export default function ProfileScreen() {
   const [pushBusy, setPushBusy] = useState(false);
   const [locationServices, setLocationServices] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [screenFocused, setScreenFocused] = useState(true);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
     void loadPushPrefs().then((prefs) => setPushNotifications(prefs.enabled));
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setScreenFocused(true);
+      return () => setScreenFocused(false);
+    }, []),
+  );
+
+  const motionActive = screenFocused && !reduceMotion;
 
   const onTogglePush = async (next: boolean) => {
     setPushNotifications(next);
@@ -150,8 +378,8 @@ export default function ProfileScreen() {
   const firstName = user?.profile?.firstName?.trim() || '';
   const lastName = user?.profile?.lastName?.trim() || '';
   const fullName = [firstName, lastName].filter(Boolean).join(' ') || 'Inspector';
-  const initials =
-    `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() ||
+  const initial =
+    firstName.charAt(0).toUpperCase() ||
     user?.email?.charAt(0)?.toUpperCase() ||
     'I';
   const roleLabel = formatRole(user?.role);
@@ -179,31 +407,49 @@ export default function ProfileScreen() {
       <SafeTopGuard color={HeroPrimary} />
 
       <View style={[styles.heroSection, { paddingTop: 8 }]}>
+        <AmbientGlow active={motionActive} />
+
         <View style={styles.topBar}>
           <View style={styles.topBarSide} />
           <Text style={styles.topBarTitle}>Profile</Text>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel="Log out"
             hitSlop={10}
             onPress={() => setLogoutOpen(true)}
             style={styles.topBarSide}
           >
-            <Ionicons color="#FFFFFF" name="log-out-outline" size={22} />
+            
+            <Ionicons color="#DC2626" name="log-out-outline" size={22} />
           </Pressable>
         </View>
 
-        <View style={styles.avatarRing}>
-          {user?.profile?.avatarUrl ? (
-            <Image source={{ uri: user.profile.avatarUrl }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
-          )}
+        <View style={styles.avatarBlock}>
+          <PulseRing active={motionActive} delayMs={0} />
+          <PulseRing active={motionActive} delayMs={1100} />
+          <PulseRing active={motionActive} delayMs={2200} />
+          <RotatingArc active={motionActive} />
+
+          <View
+            accessibilityLabel={`${fullName}, ${roleLabel}`}
+            accessibilityRole="image"
+            style={styles.avatarRing}
+          >
+            {user?.profile?.avatarUrl ? (
+              <Image source={{ uri: user.profile.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initial}</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <Text style={styles.heroName}>{fullName}</Text>
-        <Text style={styles.heroRole}>{roleLabel}</Text>
+        <View style={styles.statusLine}>
+          <StatusDotBlink active={motionActive} />
+          <Text style={styles.statusText}>Inspector · on duty</Text>
+        </View>
       </View>
 
       <View style={styles.bodySheet}>
@@ -330,15 +576,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: HeroPrimary,
     flexShrink: 0,
+    overflow: 'hidden',
     paddingBottom: 28,
     paddingHorizontal: 20,
+  },
+  ambientGlow: {
+    borderRadius: 95,
+    height: 190,
+    left: -56,
+    opacity: 0.45,
+    overflow: 'hidden',
+    position: 'absolute',
+    top: -48,
+    width: 190,
+  },
+  ambientGlowCore: {
+    alignItems: 'center',
+    borderRadius: 95,
+    height: 190,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    width: 190,
+  },
+  ambientGlowOuter: {
+    backgroundColor: `rgba(${GlowBlue},0.03)`,
+    borderRadius: 95,
+    height: 190,
+    overflow: 'hidden',
+    position: 'absolute',
+    width: 190,
+  },
+  ambientGlowMid: {
+    backgroundColor: `rgba(${GlowBlue},0.055)`,
+    borderRadius: 66,
+    height: 132,
+    overflow: 'hidden',
+    position: 'absolute',
+    width: 132,
+  },
+  ambientGlowInner: {
+    backgroundColor: `rgba(${GlowBlue},0.1)`,
+    borderRadius: 38,
+    height: 76,
+    overflow: 'hidden',
+    position: 'absolute',
+    width: 76,
   },
   topBar: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 22,
     width: '100%',
+    zIndex: 2,
   },
   topBarSide: {
     alignItems: 'center',
@@ -351,48 +641,96 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
   },
+  avatarBlock: {
+    alignItems: 'center',
+    height: RING_SIZE * 1.45,
+    justifyContent: 'center',
+    marginBottom: 0,
+    width: RING_SIZE * 1.45,
+    zIndex: 2,
+  },
+  pulseRing: {
+    borderColor: PulseBlue,
+    borderRadius: RING_SIZE / 2,
+    borderWidth: 1.5,
+    height: RING_SIZE,
+    position: 'absolute',
+    width: RING_SIZE,
+  },
+  rotatingArc: {
+    height: ARC_SIZE,
+    position: 'absolute',
+    width: ARC_SIZE,
+  },
   avatarRing: {
+    backgroundColor: 'transparent',
     borderColor: '#FFFFFF',
-    borderRadius: 52,
-    borderWidth: 3,
-    marginBottom: 16,
+    borderRadius: AVATAR_SIZE / 2,
+    borderWidth: 2,
+    height: AVATAR_SIZE,
     overflow: 'hidden',
+    width: AVATAR_SIZE,
+    zIndex: 3,
   },
   avatar: {
     alignItems: 'center',
-    backgroundColor: HeroPrimary,
-    height: 96,
+    backgroundColor: 'transparent',
+    height: AVATAR_SIZE - 4,
     justifyContent: 'center',
-    width: 96,
+    width: AVATAR_SIZE - 4,
   },
   avatarImage: {
-    height: 96,
-    width: 96,
+    height: AVATAR_SIZE - 4,
+    width: AVATAR_SIZE - 4,
   },
   avatarText: {
     color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 36,
+    fontWeight: '300',
   },
   heroName: {
     color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: -0.4,
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    marginTop: 16,
     textAlign: 'center',
+    zIndex: 2,
   },
-  heroRole: {
-    color: HeroTextMuted,
-    fontSize: 14,
+  statusLine: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 7,
+    zIndex: 2,
+  },
+  statusHalo: {
+    alignItems: 'center',
+    backgroundColor: `rgba(${GlowBlue},0.18)`,
+    borderRadius: 999,
+    height: 14,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    width: 14,
+  },
+  statusDot: {
+    backgroundColor: StatusBlue,
+    borderRadius: 999,
+    height: 6,
+    overflow: 'hidden',
+    width: 6,
+  },
+  statusText: {
+    color: StatusText,
+    fontSize: 12,
     fontWeight: '500',
-    marginTop: 6,
-    textAlign: 'center',
   },
   bodySheet: {
     backgroundColor: BodyBg,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     flex: 1,
+    marginTop: -14,
     overflow: 'hidden',
     paddingHorizontal: 20,
     paddingTop: 24,

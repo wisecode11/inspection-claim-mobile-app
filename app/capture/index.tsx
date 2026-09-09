@@ -9,7 +9,12 @@ import { Screen } from '@/components/inspection-ui';
 import { StepCapture } from '@/components/step-capture';
 import { Brand } from '@/constants/theme';
 import { useInspection } from '@/context/inspection-context';
-import { CAPTURE_STEPS, getStepById, nextStepId, StepId } from '@/lib/capture-steps';
+import {
+  getStepById,
+  lastStepId,
+  nextStepId,
+  StepId,
+} from '@/lib/capture-steps';
 
 /**
  * Stable capture screen. Step changes update `currentStepId` only (no route remount).
@@ -21,6 +26,8 @@ export default function CaptureScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const { data, markStepComplete, update } = useInspection();
   const step = getStepById(data.currentStepId);
+  const finalStepId = lastStepId();
+  const isLastStep = step?.id === finalStepId;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -38,6 +45,12 @@ export default function CaptureScreen() {
     update({ currentStepId: next });
   }, [markStepComplete, router, step, update]);
 
+  const goLastStep = useCallback(() => {
+    if (!step || isLastStep) return;
+    markStepComplete(step.id);
+    update({ currentStepId: finalStepId });
+  }, [finalStepId, isLastStep, markStepComplete, step, update]);
+
   if (!step) {
     return (
       <Screen edges={['top', 'bottom']}>
@@ -49,7 +62,7 @@ export default function CaptureScreen() {
     );
   }
 
-  const nextLabel = step.number === CAPTURE_STEPS.length ? 'Continue to review' : 'Next step';
+  const nextLabel = isLastStep ? 'Continue to review' : 'Next step';
 
   return (
     <Screen edges={['bottom']} style={styles.screen}>
@@ -74,14 +87,35 @@ export default function CaptureScreen() {
       </View>
 
       <View style={styles.footer}>
-        <Pressable
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.nextButton, pressed && styles.nextButtonPressed]}
-          onPress={goNext}
-        >
-          <Text style={styles.nextButtonText}>{nextLabel}</Text>
-          <Ionicons color={Brand.surface} name="arrow-forward" size={18} />
-        </Pressable>
+        <View style={styles.footerRow}>
+          {!isLastStep ? (
+            <Pressable
+              accessibilityLabel="Last step"
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.lastButton,
+                pressed && styles.lastButtonPressed,
+              ]}
+              onPress={goLastStep}
+            >
+              <Text style={styles.lastButtonText}>Last step</Text>
+              <Ionicons color={Brand.accent} name="play-skip-forward" size={18} />
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.nextButton,
+              isLastStep && styles.nextButtonFull,
+              pressed && styles.nextButtonPressed,
+            ]}
+            onPress={goNext}
+          >
+            <Text style={styles.nextButtonText}>{nextLabel}</Text>
+            <Ionicons color={Brand.surface} name="arrow-forward" size={18} />
+          </Pressable>
+        </View>
       </View>
     </Screen>
   );
@@ -108,16 +142,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 14,
   },
+  footerRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  lastButton: {
+    alignItems: 'center',
+    backgroundColor: Brand.surface,
+    borderColor: Brand.accent,
+    borderRadius: Brand.buttonRadiusLg,
+    borderWidth: 1.5,
+    flex: 0.42,
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+    minHeight: 54,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
+  lastButtonPressed: { opacity: 0.88 },
+  lastButtonText: {
+    color: Brand.accent,
+    fontSize: 15,
+    fontWeight: '700',
+  },
   nextButton: {
     alignItems: 'center',
     backgroundColor: Brand.accent,
-    borderRadius: Brand.buttonRadius,
+    borderRadius: Brand.buttonRadiusLg,
+    flex: 0.58,
     flexDirection: 'row',
     gap: 8,
     justifyContent: 'center',
     minHeight: 54,
     paddingHorizontal: 16,
     paddingVertical: 15,
+  },
+  nextButtonFull: {
+    flex: 1,
   },
   nextButtonPressed: { opacity: 0.92 },
   nextButtonText: { color: Brand.surface, fontSize: 16, fontWeight: '700' },

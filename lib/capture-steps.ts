@@ -220,6 +220,10 @@ export function nextStepId(current: StepId): StepId | 'review' {
   return CAPTURE_STEPS[index + 1].id;
 }
 
+export function lastStepId(): StepId {
+  return CAPTURE_STEPS[CAPTURE_STEPS.length - 1].id;
+}
+
 export function prevStepId(current: StepId): StepId | 'setup' {
   const index = CAPTURE_STEPS.findIndex((step) => step.id === current);
   if (index <= 0) return 'setup';

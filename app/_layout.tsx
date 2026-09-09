@@ -15,6 +15,11 @@ import { Brand } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { InspectionProvider } from '@/context/inspection-context';
 import { ensureAndroidChannel } from '@/lib/push-notifications';
+import {
+  fetchUnreadNotificationCount,
+  markNotificationRead,
+} from '@/lib/api';
+import { syncAppBadge } from '@/lib/notification-inbox';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Native splash may already be hidden in some environments.
@@ -48,8 +53,29 @@ function AppShell() {
       router.push('/(tabs)/jobs');
     };
 
+    const refreshBadge = () => {
+      void fetchUnreadNotificationCount(token)
+        .then((count) => syncAppBadge(count))
+        .catch(() => undefined);
+    };
+
+    const markFromPayload = (data?: { type?: string; notificationId?: string }) => {
+      const notificationId = data?.notificationId;
+      if (!notificationId) return;
+      void markNotificationRead(token, notificationId)
+        .then(() => refreshBadge())
+        .catch(() => undefined);
+    };
+
+    const receivedSub = Notifications.addNotificationReceivedListener(() => {
+      refreshBadge();
+    });
+
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as { type?: string } | undefined;
+      const data = response.notification.request.content.data as
+        | { type?: string; notificationId?: string }
+        | undefined;
+      markFromPayload(data);
       if (data?.type === 'job_assigned') {
         goJobs();
       }
@@ -58,14 +84,22 @@ function AppShell() {
     if (!handledResponse.current) {
       handledResponse.current = true;
       void Notifications.getLastNotificationResponseAsync().then((response) => {
-        const data = response?.notification.request.content.data as { type?: string } | undefined;
+        const data = response?.notification.request.content.data as
+          | { type?: string; notificationId?: string }
+          | undefined;
+        markFromPayload(data);
         if (data?.type === 'job_assigned') {
           goJobs();
         }
       });
     }
 
-    return () => sub.remove();
+    refreshBadge();
+
+    return () => {
+      receivedSub.remove();
+      sub.remove();
+    };
   }, [token, showSplash, router]);
 
   useEffect(() => {
@@ -131,6 +165,13 @@ function AppShell() {
             headerStyle: { backgroundColor: '#FFFFFF' },
             headerShadowVisible: false,
             headerTitleStyle: { color: Brand.ink, fontSize: 17, fontWeight: '700' },
+          }}
+        />
+        <Stack.Screen
+          name="notifications"
+          options={{
+            headerShown: false,
+            title: 'Notifications',
           }}
         />
         <Stack.Screen name="report-draft" options={{ title: 'Editable PDF Draft' }} />

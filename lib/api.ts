@@ -669,3 +669,64 @@ export async function clearPushTokenWithApi(
     body: JSON.stringify(body),
   });
 }
+
+export type InboxNotification = {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  data: {
+    jobId?: string;
+    jobNumber?: string;
+  };
+  readAt: string | null;
+  createdAt: string | null;
+};
+
+export async function fetchNotifications(
+  token: string,
+  options: { limit?: number; unreadOnly?: boolean } = {}
+): Promise<{ items: InboxNotification[]; unreadCount: number }> {
+  const params = new URLSearchParams();
+  if (options.limit) params.set('limit', String(options.limit));
+  if (options.unreadOnly) params.set('unreadOnly', 'true');
+  const qs = params.toString();
+  const payload = await requestJson<{
+    data?: { items?: InboxNotification[]; unreadCount?: number };
+  }>(`/api/notifications${qs ? `?${qs}` : ''}`, { token });
+
+  return {
+    items: payload.data?.items ?? [],
+    unreadCount: payload.data?.unreadCount ?? 0,
+  };
+}
+
+export async function fetchUnreadNotificationCount(token: string): Promise<number> {
+  const payload = await requestJson<{ data?: { unreadCount?: number } }>(
+    '/api/notifications/unread-count',
+    { token }
+  );
+  return payload.data?.unreadCount ?? 0;
+}
+
+export async function markNotificationRead(
+  token: string,
+  notificationId: string
+): Promise<InboxNotification> {
+  const payload = await requestJson<{ data?: { notification?: InboxNotification } }>(
+    `/api/notifications/${notificationId}/read`,
+    { method: 'PATCH', token }
+  );
+  if (!payload.data?.notification) {
+    throw new Error('Could not mark notification read');
+  }
+  return payload.data.notification;
+}
+
+export async function markAllNotificationsRead(token: string): Promise<number> {
+  const payload = await requestJson<{ data?: { updated?: number } }>(
+    '/api/notifications/read-all',
+    { method: 'PATCH', token }
+  );
+  return payload.data?.updated ?? 0;
+}

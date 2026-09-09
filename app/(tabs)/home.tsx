@@ -18,6 +18,7 @@ import { useAuth } from '@/context/auth-context';
 import { useOpenJob } from '@/hooks/use-open-job';
 import {
   fetchJobs,
+  fetchUnreadNotificationCount,
   InspectionJob,
   jobAddressText,
   jobCustomerName,
@@ -29,6 +30,7 @@ import {
   isInProgressStatus,
 } from '@/lib/job-status';
 import { loadCachedJobs, saveCachedJobs } from '@/lib/jobs-storage';
+import { syncAppBadge } from '@/lib/notification-inbox';
 
 const BodyBg = Brand.sheetBg;
 const HeroPrimary = Brand.accent;
@@ -153,7 +155,22 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
   const hasLoaded = useRef(false);
+
+  const loadUnread = useCallback(async () => {
+    if (!token) {
+      setUnreadCount(0);
+      return;
+    }
+    try {
+      const count = await fetchUnreadNotificationCount(token);
+      setUnreadCount(count);
+      await syncAppBadge(count);
+    } catch {
+      // Keep last known badge if inbox API is briefly unavailable.
+    }
+  }, [token]);
 
   const loadJobs = useCallback(
     async (mode: 'full' | 'refresh' = 'full') => {
@@ -200,7 +217,8 @@ export default function HomeScreen() {
       const mode = hasLoaded.current ? 'refresh' : 'full';
       hasLoaded.current = true;
       void loadJobs(mode);
-    }, [loadJobs]),
+      void loadUnread();
+    }, [loadJobs, loadUnread]),
   );
 
   const stats = jobStats(jobs);
@@ -229,9 +247,25 @@ export default function HomeScreen() {
               </Text>
             ) : null}
           </View>
-          <Pressable accessibilityRole="button" hitSlop={10} style={styles.bellBtn}>
+          <Pressable
+            accessibilityLabel={
+              unreadCount > 0
+                ? `Notifications, ${unreadCount} unread`
+                : 'Notifications'
+            }
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={() => router.push('/notifications')}
+            style={styles.bellBtn}
+          >
             <Ionicons color="rgba(255,255,255,0.9)" name="notifications-outline" size={22} />
-            <View style={styles.bellDot} />
+            {unreadCount > 0 ? (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>
+                  {unreadCount > 9 ? '9+' : String(unreadCount)}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
 
@@ -263,7 +297,10 @@ export default function HomeScreen() {
           refreshControl={
             <RefreshControl
               colors={[Brand.accent]}
-              onRefresh={() => void loadJobs('refresh')}
+              onRefresh={() => {
+                void loadJobs('refresh');
+                void loadUnread();
+              }}
               refreshing={refreshing}
               tintColor={Brand.accent}
             />
@@ -406,16 +443,25 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: 40,
   },
-  bellDot: {
-    backgroundColor: StatusGold,
+  bellBadge: {
+    alignItems: 'center',
+    backgroundColor: Brand.danger,
     borderColor: HeroPrimary,
-    borderRadius: 4,
+    borderRadius: 9,
     borderWidth: 1.5,
-    height: 8,
+    height: 18,
+    justifyContent: 'center',
+    minWidth: 18,
+    paddingHorizontal: 4,
     position: 'absolute',
-    right: 8,
-    top: 8,
-    width: 8,
+    right: 2,
+    top: 2,
+  },
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    lineHeight: 12,
   },
   heroEyebrow: {
     color: HeroTextMuted,

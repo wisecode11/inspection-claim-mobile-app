@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { SafeTopGuard } from '@/components/safe-top-guard';
@@ -27,6 +27,7 @@ const TextSecondary = '#6B7280';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,7 +58,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
+    <SafeAreaView edges={['top']} style={styles.screen}>
       <SafeTopGuard color={HeroPrimary} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -93,7 +94,7 @@ export default function LoginScreen() {
             </Text>
           </View>
 
-          <View style={styles.bodySheet}>
+          <View style={[styles.bodySheet, { paddingBottom: 32 + insets.bottom }]}>
             <View style={styles.formCard}>
               <Text style={styles.formTitle}>Sign in</Text>
 
@@ -265,7 +266,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 32,
     flexGrow: 1,
     minHeight: 360,
-    paddingBottom: 32,
     paddingHorizontal: 20,
     paddingTop: 28,
   },
