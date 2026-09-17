@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
@@ -157,16 +156,6 @@ function AppShell() {
         <Stack.Screen name="capture/index" options={{ headerShown: false, title: 'Field Capture' }} />
         <Stack.Screen name="capture/[step]" options={{ headerShown: false, title: 'Field Capture' }} />
         <Stack.Screen name="review" options={{ title: 'Review & Quality Check' }} />
-        <Stack.Screen
-          name="jobs-in-progress"
-          options={{
-            title: 'Jobs in progress',
-            headerBackButtonDisplayMode: 'minimal',
-            headerStyle: { backgroundColor: '#FFFFFF' },
-            headerShadowVisible: false,
-            headerTitleStyle: { color: Brand.ink, fontSize: 17, fontWeight: '700' },
-          }}
-        />
         <Stack.Screen
           name="notifications"
           options={{

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -99,7 +99,7 @@ export default function CaptureScreen() {
               onPress={goLastStep}
             >
               <Text style={styles.lastButtonText}>Last step</Text>
-              <Ionicons color={Brand.accent} name="play-skip-forward" size={18} />
+              <Icon color={Brand.accent} name="play-skip-forward" size={18} />
             </Pressable>
           ) : null}
 
@@ -113,7 +113,7 @@ export default function CaptureScreen() {
             onPress={goNext}
           >
             <Text style={styles.nextButtonText}>{nextLabel}</Text>
-            <Ionicons color={Brand.surface} name="arrow-forward" size={18} />
+            <Icon color={Brand.surface} name="arrow-forward" size={18} />
           </Pressable>
         </View>
       </View>

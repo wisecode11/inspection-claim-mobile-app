@@ -181,6 +181,8 @@ export default function ReportScreen() {
     router.replace('/(tabs)/jobs');
   };
 
+  const actionsDisabled = !pdfUri || busy || sending || creating;
+
   return (
     <Screen edges={['bottom']} style={styles.screen}>
       <View style={styles.content}>
@@ -202,68 +204,102 @@ export default function ReportScreen() {
         </Text>
 
         <View style={styles.reportCard}>
-          <Text style={styles.reportLabel}>FINAL PDF</Text>
-          <Text style={styles.customer}>{data.homeownerName || data.customer}</Text>
-          <Text style={styles.address}>{data.address}</Text>
-          <Text style={styles.meta}>
-            {pdfUri
-              ? `${includedPhotos} photos included · draft applied`
-              : 'Preparing PDF...'}
-          </Text>
+          <View style={styles.reportCardBody}>
+            <Text style={styles.reportLabel}>FINAL PDF</Text>
+            <Text style={styles.customer}>{data.homeownerName || data.customer}</Text>
+            <Text style={styles.address}>{data.address}</Text>
+            <Text style={styles.meta}>
+              {pdfUri
+                ? `${includedPhotos} photos included · draft applied`
+                : 'Preparing PDF...'}
+            </Text>
+          </View>
+
+          <View style={styles.cardActions}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={actionsDisabled}
+              onPress={() => void runAction('view')}
+              style={({ pressed }) => [
+                styles.cardAction,
+                actionsDisabled && styles.disabled,
+                pressed && !actionsDisabled && styles.pressed,
+              ]}
+            >
+              <Text style={styles.cardActionText}>{busy ? '…' : 'Open'}</Text>
+            </Pressable>
+
+            <View style={styles.cardActionDivider} />
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={actionsDisabled}
+              onPress={() => void runAction('download')}
+              style={({ pressed }) => [
+                styles.cardAction,
+                actionsDisabled && styles.disabled,
+                pressed && !actionsDisabled && styles.pressed,
+              ]}
+            >
+              <Text style={styles.cardActionText}>Download</Text>
+            </Pressable>
+
+            <View style={styles.cardActionDivider} />
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={actionsDisabled}
+              onPress={() => void runAction('share')}
+              style={({ pressed }) => [
+                styles.cardAction,
+                actionsDisabled && styles.disabled,
+                pressed && !actionsDisabled && styles.pressed,
+              ]}
+            >
+              <Text style={styles.cardActionText}>Share</Text>
+            </Pressable>
+          </View>
         </View>
 
-        <Pressable
-          style={[styles.primary, (!pdfUri || busy || sending) && styles.disabled]}
-          disabled={!pdfUri || busy || sending}
-          onPress={() => void runAction('view')}
-        >
-          <Text style={styles.primaryText}>{busy ? 'Please wait...' : 'Open PDF'}</Text>
-        </Pressable>
+        <View style={styles.bottomActions}>
+          <Pressable
+            style={[
+              styles.send,
+              (!pdfUri || !token || sending || sent || creating) && styles.disabled,
+            ]}
+            disabled={!pdfUri || !token || sending || sent || creating}
+            onPress={() => void sendToAdmin()}
+          >
+            {sending ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.sendText}>
+                {sent ? 'Sent to Admin ✓' : 'Send to Admin'}
+              </Text>
+            )}
+          </Pressable>
 
-        <Pressable
-          style={[styles.secondary, (!pdfUri || busy || sending) && styles.disabled]}
-          disabled={!pdfUri || busy || sending}
-          onPress={() => void runAction('download')}
-        >
-          <Text style={styles.secondaryText}>Download PDF</Text>
-        </Pressable>
+          <View style={styles.footerLinks}>
+            <Pressable
+              disabled={busy || sending || creating}
+              onPress={() => router.replace('/report-draft')}
+              style={({ pressed }) => [
+                styles.footerLink,
+                (busy || sending || creating) && styles.disabled,
+                pressed && !(busy || sending || creating) && styles.pressed,
+              ]}
+            >
+              <Text style={styles.editDraftText}>Edit draft again</Text>
+            </Pressable>
 
-        <Pressable
-          style={[styles.link, (!pdfUri || busy || sending) && styles.disabled]}
-          disabled={!pdfUri || busy || sending}
-          onPress={() => void runAction('share')}
-        >
-          <Text style={styles.linkText}>Share Report</Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.editDraft, (busy || sending || creating) && styles.disabled]}
-          disabled={busy || sending || creating}
-          onPress={() => router.replace('/report-draft')}
-        >
-          <Text style={styles.editDraftText}>Edit draft again</Text>
-        </Pressable>
-
-        <Pressable
-          style={[
-            styles.send,
-            (!pdfUri || !token || sending || sent) && styles.disabled,
-          ]}
-          disabled={!pdfUri || !token || sending || sent}
-          onPress={() => void sendToAdmin()}
-        >
-          {sending ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.sendText}>
-              {sent ? 'Sent to Admin ✓' : 'Send to Admin'}
-            </Text>
-          )}
-        </Pressable>
-
-        <Pressable style={styles.done} onPress={() => void backToJobs()}>
-          <Text style={styles.doneText}>Back to Jobs</Text>
-        </Pressable>
+            <Pressable
+              onPress={() => void backToJobs()}
+              style={({ pressed }) => [styles.footerLink, pressed && styles.pressed]}
+            >
+              <Text style={styles.doneText}>Back to Jobs</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </Screen>
   );
@@ -284,49 +320,85 @@ const styles = StyleSheet.create({
   successMark: { color: '#3C8C5A', fontSize: 42, fontWeight: '800' },
   title: { color: '#133A42', fontSize: 24, fontWeight: '800', marginTop: 18, textAlign: 'center' },
   subtitle: { color: '#70818A', marginTop: 7, textAlign: 'center' },
-  reportCard: { backgroundColor: '#FFF', borderRadius: 16, marginTop: 28, padding: 20, width: '100%' },
-  reportLabel: { color: Brand.accent, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  reportCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    marginTop: 28,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  reportCardBody: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  reportLabel: { color: '#84949C', fontSize: 12, fontWeight: '800', letterSpacing: 1 },
   customer: { color: '#133A42', fontSize: 20, fontWeight: '800', marginTop: 10 },
   address: { color: '#526A74', lineHeight: 20, marginTop: 4 },
-  meta: { color: '#84949C', fontSize: 12, marginTop: 18 },
-  primary: {
-    alignItems: 'center',
-    backgroundColor: Brand.accent,
-    borderRadius: Brand.buttonRadius,
-    marginTop: 24,
-    padding: 16,
-    width: '100%',
+  meta: { color: '#84949C', fontSize: 12, marginTop: 14 },
+  cardActions: {
+    borderTopColor: '#E8EEF0',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    minHeight: 48,
   },
-  primaryText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
-  secondary: {
+  cardAction: {
     alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderColor: Brand.accent,
-    borderRadius: Brand.buttonRadius,
-    borderWidth: 1,
-    marginTop: 10,
-    padding: 15,
-    width: '100%',
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: 14,
   },
-  secondaryText: { color: Brand.accent, fontWeight: '800' },
-  link: { marginTop: 18 },
-  linkText: { color: Brand.accent, fontWeight: '800' },
-  editDraft: {
-    alignItems: 'center',
-    marginTop: 14,
-    padding: 10,
+  cardActionDivider: {
+    alignSelf: 'stretch',
+    backgroundColor: '#E8EEF0',
+    marginVertical: 10,
+    width: StyleSheet.hairlineWidth,
   },
-  editDraftText: { color: '#133A42', fontWeight: '700' },
+  cardActionText: {
+    color: Brand.accent,
+    fontSize: 15,
+    fontWeight: '700',
+  },
   send: {
     alignItems: 'center',
-    backgroundColor: '#133A42',
-    borderRadius: Brand.buttonRadius,
-    marginTop: 10,
-    padding: 16,
+    backgroundColor: Brand.accent,
+    borderRadius: Brand.buttonRadiusLg,
+    minHeight: 54,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     width: '100%',
   },
   sendText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
-  done: { marginTop: 'auto', padding: 15 },
-  doneText: { color: '#70818A', fontWeight: '700' },
+  bottomActions: {
+    marginTop: 'auto',
+    paddingTop: 24,
+    width: '100%',
+  },
+  footerLinks: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginTop: 16,
+    width: '100%',
+  },
+  footerLink: {
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingVertical: 12,
+  },
+  editDraftText: {
+    color: '#133A42',
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  doneText: {
+    color: '#70818A',
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   disabled: { opacity: 0.5 },
+  pressed: { opacity: 0.75 },
 });

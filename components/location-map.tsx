@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
-import { Ionicons } from '@expo/vector-icons';
 
+import { Icon } from '@/components/icon';
 import { Brand } from '@/constants/theme';
 
 type LocationMapProps = {
@@ -140,7 +140,7 @@ export function LocationMap({
       />
       {embedded || hero ? (
         <View pointerEvents="none" style={[styles.hintPill, hero && styles.hintPillHero]}>
-          {hero ? null : <Ionicons color="#FFFFFF" name="hand-left-outline" size={13} />}
+          {hero ? null : <Icon color="#FFFFFF" name="hand-left-outline" size={13} />}
           <Text style={styles.hintText}>
             {hero ? 'Drag pin to adjust' : 'Drag pin to adjust location'}
           </Text>

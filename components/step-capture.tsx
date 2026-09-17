@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import * as ImagePicker from 'expo-image-picker';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -81,7 +81,7 @@ function PhotoActionsMenu({
         onPress={() => setOpen(true)}
         style={({ pressed }) => [styles.menuBtn, pressed && styles.menuBtnPressed]}
       >
-        <Ionicons color={Brand.muted} name="ellipsis-horizontal" size={18} />
+        <Icon color={Brand.muted} name="ellipsis-horizontal" size={18} />
       </Pressable>
 
       <Modal
@@ -94,7 +94,7 @@ function PhotoActionsMenu({
           <Pressable style={styles.photoModalCard} onPress={(event) => event.stopPropagation()}>
             <View style={styles.photoModalHeader}>
               <View style={styles.photoModalIcon}>
-                <Ionicons color={Brand.accent} name="image-outline" size={22} />
+                <Icon color={Brand.accent} name="image-outline" size={22} />
               </View>
               <View style={styles.photoModalCopy}>
                 <Text style={styles.photoModalTitle} numberOfLines={1}>
@@ -109,7 +109,7 @@ function PhotoActionsMenu({
                 style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
                 onPress={() => runAndClose(() => onAnnotate(photo))}
               >
-                <Ionicons color={Brand.ink} name="brush-outline" size={18} />
+                <Icon color={Brand.ink} name="brush-outline" size={18} />
                 <Text style={styles.photoModalRowText}>Mark damage</Text>
               </Pressable>
             ) : null}
@@ -119,7 +119,7 @@ function PhotoActionsMenu({
                 style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
                 onPress={() => runAndClose(() => onSetCover(photo.id))}
               >
-                <Ionicons color={Brand.ink} name="star-outline" size={18} />
+                <Icon color={Brand.ink} name="star-outline" size={18} />
                 <Text style={styles.photoModalRowText}>Set as cover</Text>
               </Pressable>
             ) : null}
@@ -129,7 +129,7 @@ function PhotoActionsMenu({
                 style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
                 onPress={() => runAndClose(() => onReorder(photo.id, 'up'))}
               >
-                <Ionicons color={Brand.ink} name="arrow-up-outline" size={18} />
+                <Icon color={Brand.ink} name="arrow-up-outline" size={18} />
                 <Text style={styles.photoModalRowText}>Move up</Text>
               </Pressable>
             ) : null}
@@ -139,7 +139,7 @@ function PhotoActionsMenu({
                 style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
                 onPress={() => runAndClose(() => onReorder(photo.id, 'down'))}
               >
-                <Ionicons color={Brand.ink} name="arrow-down-outline" size={18} />
+                <Icon color={Brand.ink} name="arrow-down-outline" size={18} />
                 <Text style={styles.photoModalRowText}>Move down</Text>
               </Pressable>
             ) : null}
@@ -148,7 +148,7 @@ function PhotoActionsMenu({
               style={({ pressed }) => [styles.photoModalRow, pressed && styles.menuBtnPressed]}
               onPress={() => runAndClose(() => onMove(photo.id))}
             >
-              <Ionicons color={Brand.ink} name="swap-horizontal-outline" size={18} />
+              <Icon color={Brand.ink} name="swap-horizontal-outline" size={18} />
               <Text style={styles.photoModalRowText}>Move to step</Text>
             </Pressable>
 
@@ -160,7 +160,7 @@ function PhotoActionsMenu({
               ]}
               onPress={() => runAndClose(() => onRemove(photo.id))}
             >
-              <Ionicons color={Brand.danger} name="trash-outline" size={18} />
+              <Icon color={Brand.danger} name="trash-outline" size={18} />
               <Text style={[styles.photoModalRowText, styles.photoModalRowTextDanger]}>Delete photo</Text>
             </Pressable>
 
@@ -209,7 +209,7 @@ function OptionChipRow({
             ]}
           >
             {done ? (
-              <Ionicons
+              <Icon
                 color={active ? Brand.surface : '#1D6B3F'}
                 name="checkmark-circle"
                 size={14}
@@ -320,7 +320,7 @@ function PhotoThumbnailGrid({
               onPress={() => onRemove(photo.id)}
               style={({ pressed }) => [styles.deleteBadge, pressed && styles.menuBtnPressed]}
             >
-              <Ionicons color="#FFFFFF" name="trash-outline" size={14} />
+              <Icon color="#FFFFFF" name="trash-outline" size={14} />
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -330,7 +330,7 @@ function PhotoThumbnailGrid({
               }}
               style={[styles.annotateBadge, minimal && styles.annotateBadgeMinimal]}
             >
-              <Ionicons color="#FFFFFF" name="brush-outline" size={12} />
+              <Icon color="#FFFFFF" name="brush-outline" size={12} />
               {!minimal ? <Text style={styles.annotateBadgeText}>Mark</Text> : null}
             </Pressable>
             {minimal ? (
@@ -572,40 +572,6 @@ export function StepCapture({ step }: Props) {
       shotType,
       notes: step.mode === 'metal' ? photoNotes.trim() || undefined : undefined,
     });
-
-    if (step.mode === 'slots' && step.slots && activeSlot) {
-      const currentIndex = step.slots.indexOf(activeSlot);
-      const nextEmpty = step.slots
-        .slice(currentIndex + 1)
-        .find((slot) => !stepPhotos.some((photo) => photoBelongsToSlot(photo, slot)));
-      if (nextEmpty) setActiveSlot(nextEmpty);
-    }
-
-    if (
-      (step.mode === 'components' || step.mode === 'metal') &&
-      step.components &&
-      activeComponent
-    ) {
-      const currentIndex = step.components.indexOf(activeComponent);
-      const nextEmpty = step.components
-        .slice(currentIndex + 1)
-        .find(
-          (component) =>
-            !stepPhotos.some(
-              (photo) =>
-                photo.component === component ||
-                photo.label === component ||
-                photo.label.startsWith(`${component} (`)
-            )
-        );
-      if (nextEmpty) setActiveComponent(nextEmpty);
-    }
-
-    if (step.mode === 'metal' && metalShot === 'overview') {
-      setMetalShot('close-up');
-    } else if (step.mode === 'metal' && metalShot === 'close-up') {
-      setMetalShot('overview');
-    }
   };
 
   const toggleTieIn = (item: string) => {
@@ -689,7 +655,7 @@ export function StepCapture({ step }: Props) {
   const captureButtons = (
     <View style={styles.quickBar}>
       <Pressable style={styles.capture} onPress={() => void capture(true)}>
-        <Ionicons color={Brand.surface} name="camera" size={18} />
+        <Icon color={Brand.surface} name="camera" size={18} />
         <Text style={styles.captureText}>Take Photo</Text>
       </Pressable>
       <Pressable style={styles.gallery} onPress={() => void capture(false, true)}>
@@ -793,7 +759,7 @@ export function StepCapture({ step }: Props) {
               style={({ pressed }) => [styles.captureZone, pressed && styles.captureZonePressed]}
             >
               <View style={styles.captureZoneIcon}>
-                <Ionicons color={Brand.soft} name="camera-outline" size={28} />
+                <Icon color={Brand.soft} name="camera-outline" size={28} />
               </View>
               <Text style={styles.captureZoneTitle}>{captureZoneTitle}</Text>
               <Text style={styles.captureZoneHint}>Tap here or use the button below</Text>
@@ -814,7 +780,7 @@ export function StepCapture({ step }: Props) {
 
         <View style={styles.quickBar}>
           <Pressable style={styles.capture} onPress={() => void capture(true)}>
-            <Ionicons color={Brand.surface} name="camera" size={18} />
+            <Icon color={Brand.surface} name="camera" size={18} />
             <Text style={styles.captureText}>Take Photo</Text>
           </Pressable>
           <Pressable style={styles.gallery} onPress={() => void capture(false, true)}>

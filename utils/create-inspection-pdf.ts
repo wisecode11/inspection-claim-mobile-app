@@ -67,12 +67,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
   });
 }
 
-async function photoToDataUri(uri: string) {
+async function photoToDataUri(uri: string, opts?: { wider?: boolean }) {
+  const targetWidth = opts?.wider ? 1200 : 720;
   const resized = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: 720 } }],
+    [{ resize: { width: targetWidth } }],
     {
-      compress: 0.62,
+      compress: opts?.wider ? 0.72 : 0.62,
       format: ImageManipulator.SaveFormat.JPEG,
       base64: true,
     }
@@ -85,7 +86,14 @@ async function embedPhotoMap(photos: PhotoItem[]) {
   const map = new Map<string, string>();
   for (const photo of photos.slice(0, 80)) {
     try {
-      const dataUri = await withTimeout(photoToDataUri(photo.uri), 10000, 'Photo convert');
+      const annotated =
+        /annotated/i.test(photo.label) ||
+        (Array.isArray(photo.annotations) && photo.annotations.length > 0);
+      const dataUri = await withTimeout(
+        photoToDataUri(photo.uri, { wider: annotated }),
+        10000,
+        'Photo convert'
+      );
       if (dataUri) map.set(photo.id, dataUri);
     } catch {
       // Skip failed photos.
@@ -121,9 +129,12 @@ function renderPhotos(photos: PhotoItem[], embedded: Map<string, string>) {
     .map((photo) => {
       const src = embedded.get(photo.id);
       if (!src) return '';
+      const annotated =
+        /annotated/i.test(photo.label) ||
+        (Array.isArray(photo.annotations) && photo.annotations.length > 0);
       return `
-        <div class="photo-block">
-          <img src="${src}" />
+        <div class="photo-block${annotated ? ' photo-block-annotated' : ''}">
+          <img class="${annotated ? 'annotated' : ''}" src="${src}" />
           <div class="caption">${escapeHtml(photoCaption(photo) || 'Photographic evidence')}</div>
         </div>`;
     })
@@ -417,14 +428,17 @@ function buildReportHtml(
     .photo-block + .photo-block {
       margin-top: 70px;
     }
-    .photo-block img {
+    .photo-block img,
+    .photo-block-annotated img,
+    .photo-block img.annotated {
       display: block;
-      width: auto;
-      height: auto;
-      max-width: 55%;
-      max-height: 310px;
+      box-sizing: border-box;
+      width: 82%;
+      max-width: 82%;
+      height: 340px;
+      max-height: 340px;
       object-fit: contain;
-      object-position: left top;
+      object-position: center center;
       border: 1px solid #ccc;
       background: #f3f3f3;
       margin: 0;

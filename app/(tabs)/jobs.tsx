@@ -1,13 +1,15 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Icon } from '@/components/icon';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import Animated, {
@@ -121,6 +123,51 @@ function shortAddress(address: string) {
   return `${trimmed.slice(0, 69)}…`;
 }
 
+type JobFilter = 'all' | 'inProgress' | 'completed';
+
+const FILTER_CHIPS: { key: JobFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'inProgress', label: 'In progress' },
+  { key: 'completed', label: 'Completed' },
+];
+
+function FilterChips({
+  value,
+  onChange,
+  counts,
+}: {
+  value: JobFilter;
+  onChange: (next: JobFilter) => void;
+  counts: Record<JobFilter, number>;
+}) {
+  return (
+    <ScrollView
+      contentContainerStyle={styles.chipsRow}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.chipsScroll}
+    >
+      {FILTER_CHIPS.map((chip) => {
+        const active = value === chip.key;
+        return (
+          <Pressable
+            key={chip.key}
+            onPress={() => onChange(chip.key)}
+            style={[styles.chip, active && styles.chipActive]}
+          >
+            <Text style={[styles.chipText, active && styles.chipTextActive]}>
+              {chip.label}{' '}
+              <Text style={[styles.chipCount, active && styles.chipCountActive]}>
+                {counts[chip.key]}
+              </Text>
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 function StatCard({
   value,
   label,
@@ -222,12 +269,12 @@ function JobListItem({ index, item, onOpen }: JobListItemProps) {
             {action.variant === 'primary' ? (
               <View style={styles.primaryAction}>
                 <Text style={styles.primaryActionText}>{action.label}</Text>
-                <Ionicons color={Brand.surface} name="chevron-forward" size={18} />
+                <Icon color={Brand.surface} name="chevron-forward" size={18} />
               </View>
             ) : (
               <View style={styles.ghostAction}>
                 <Text style={styles.ghostActionText}>{action.label}</Text>
-                <Ionicons color={Brand.accent} name="chevron-forward" size={18} />
+                <Icon color={Brand.accent} name="chevron-forward" size={18} />
               </View>
             )}
           </View>
@@ -239,6 +286,7 @@ function JobListItem({ index, item, onOpen }: JobListItemProps) {
 
 export default function JobsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const { resetForJob } = useInspection();
   const { user, token } = useAuth();
   const firstName = user?.profile?.firstName?.trim();
@@ -247,7 +295,17 @@ export default function JobsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [filter, setFilter] = useState<JobFilter>('all');
+  const [search, setSearch] = useState('');
   const hasLoaded = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (params.filter === 'all' || params.filter === 'inProgress' || params.filter === 'completed') {
+        setFilter(params.filter);
+      }
+    }, [params.filter]),
+  );
 
   const loadJobs = useCallback(async (mode: 'full' | 'refresh' = 'full') => {
     if (!token) {
@@ -295,6 +353,15 @@ export default function JobsScreen() {
   );
 
   const stats = jobStats(jobs);
+  const query = search.trim().toLowerCase();
+  const filteredJobs = jobs.filter((job) => {
+    if (filter === 'inProgress' && !isInProgressStatus(job.status)) return false;
+    if (filter === 'completed' && !isCompletedStatus(job.status)) return false;
+    if (!query) return true;
+    const customer = jobCustomerName(job).toLowerCase();
+    const address = jobAddressText(job).toLowerCase();
+    return customer.includes(query) || address.includes(query);
+  });
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -330,7 +397,7 @@ export default function JobsScreen() {
       <View style={styles.bodySheet}>
         <FlatList
           contentContainerStyle={styles.list}
-          data={jobs}
+          data={filteredJobs}
           keyExtractor={(job) => String(job.id)}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -363,13 +430,59 @@ export default function JobsScreen() {
                 />
               </View>
 
+              <View style={styles.searchRow}>
+                <View style={styles.searchBar}>
+                  <Icon color={Brand.soft} name="search" size={18} />
+                  <TextInput
+                    autoCorrect={false}
+                    onChangeText={setSearch}
+                    placeholder="Search by name or address"
+                    placeholderTextColor={Brand.soft}
+                    returnKeyType="search"
+                    style={styles.searchInput}
+                    value={search}
+                  />
+                  {search.length > 0 ? (
+                    <Pressable hitSlop={8} onPress={() => setSearch('')}>
+                      <Icon color={Brand.soft} name="close-circle" size={18} />
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Pressable
+                  accessibilityLabel="Reset filters"
+                  onPress={() => {
+                    setFilter('all');
+                    setSearch('');
+                  }}
+                  style={styles.filterIconBtn}
+                >
+                  <Icon color="#FFFFFF" name="options-outline" size={20} />
+                </Pressable>
+              </View>
+
+              <FilterChips
+                value={filter}
+                onChange={setFilter}
+                counts={{ all: jobs.length, inProgress: stats.inProgress, completed: stats.completed }}
+              />
+
               <Animated.View
                 entering={FadeIn.delay(280).duration(360)}
                 style={styles.sectionHeader}
               >
-                <Text style={styles.sectionTitle}>Your jobs</Text>
+                <Text style={styles.sectionTitle}>
+                  {filter === 'inProgress'
+                    ? 'In progress'
+                    : filter === 'completed'
+                      ? 'Completed'
+                      : 'Your jobs'}
+                </Text>
                 <Text style={styles.sectionCount}>
-                  {loading ? '—' : `${jobs.length} total`}
+                  {loading
+                    ? '—'
+                    : query
+                      ? `${filteredJobs.length} match${filteredJobs.length === 1 ? '' : 'es'}`
+                      : `${filteredJobs.length} total`}
                 </Text>
               </Animated.View>
             </View>
@@ -377,14 +490,37 @@ export default function JobsScreen() {
         ListEmptyComponent={
           loading ? (
             <ActivityIndicator color={Brand.accent} style={styles.emptySpinner} />
+          ) : query ? (
+            <Animated.View entering={FadeIn.duration(220)} style={styles.empty}>
+              <View style={styles.emptyIcon}>
+                <Icon color={Brand.accent} name="search" size={28} />
+              </View>
+              <Text style={styles.emptyTitle}>No matches</Text>
+              <Text style={styles.emptyText}>
+                No jobs found for "{search.trim()}". Try a different name or address.
+              </Text>
+              <Pressable onPress={() => setSearch('')} style={styles.retry}>
+                <Text style={styles.retryText}>Clear search</Text>
+              </Pressable>
+            </Animated.View>
           ) : (
             <Animated.View entering={FadeIn.duration(220)} style={styles.empty}>
               <View style={styles.emptyIcon}>
-                <Ionicons color={Brand.accent} name="clipboard-outline" size={28} />
+                <Icon color={Brand.accent} name="clipboard-outline" size={28} />
               </View>
-              <Text style={styles.emptyTitle}>No jobs yet</Text>
+              <Text style={styles.emptyTitle}>
+                {filter === 'inProgress'
+                  ? 'No jobs in progress'
+                  : filter === 'completed'
+                    ? 'No completed jobs'
+                    : 'No jobs yet'}
+              </Text>
               <Text style={styles.emptyText}>
-                When a job is assigned to you, it will appear here.
+                {filter === 'inProgress'
+                  ? 'Jobs you start will show up here.'
+                  : filter === 'completed'
+                    ? 'Jobs you finish will show up here.'
+                    : 'When a job is assigned to you, it will appear here.'}
               </Text>
               <Pressable onPress={() => void loadJobs('full')} style={styles.retry}>
                 <Text style={styles.retryText}>Refresh</Text>
@@ -592,6 +728,77 @@ const styles = StyleSheet.create({
   },
   statLabelMuted: {
     color: '#C5CDD3',
+  },
+  searchRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  searchBar: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    elevation: 3,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+  },
+  searchInput: {
+    color: Brand.ink,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    padding: 0,
+  },
+  filterIconBtn: {
+    alignItems: 'center',
+    backgroundColor: HeroPrimary,
+    borderRadius: 14,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
+  chipsScroll: {
+    marginBottom: 20,
+  },
+  chipsRow: {
+    gap: 8,
+    paddingRight: 4,
+  },
+  chip: {
+    backgroundColor: '#FFFFFF',
+    borderColor: Brand.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  chipActive: {
+    backgroundColor: HeroPrimary,
+    borderColor: HeroPrimary,
+  },
+  chipText: {
+    color: Brand.ink,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  chipTextActive: {
+    color: '#FFFFFF',
+  },
+  chipCount: {
+    color: Brand.soft,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  chipCountActive: {
+    color: 'rgba(255,255,255,0.8)',
   },
   sectionHeader: {
     alignItems: 'center',

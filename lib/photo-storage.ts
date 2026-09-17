@@ -1,5 +1,9 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Platform } from 'react-native';
+
+const UPLOAD_MAX_WIDTH = 1800;
+const UPLOAD_JPEG_QUALITY = 0.78;
 
 function extensionFromUri(uri: string) {
   const clean = uri.split('?')[0] || uri;
@@ -66,4 +70,34 @@ export async function readPhotoBase64(uri: string): Promise<{ base64: string; mi
   const ext = extensionFromUri(uri);
   const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
   return { base64, mimeType };
+}
+
+/**
+ * Resizes/recompresses a photo before it's sent to the backend, so the
+ * upload payload isn't the full, unresized camera capture (often several
+ * MB per photo). Falls back to the raw file if manipulation fails for any
+ * reason — a resize error should never block an upload.
+ */
+export async function readPhotoBase64ForUpload(uri: string): Promise<{ base64: string; mimeType: string }> {
+  if (Platform.OS === 'web') {
+    return readPhotoBase64(uri);
+  }
+
+  try {
+    const probe = await ImageManipulator.manipulateAsync(uri, []);
+    const actions =
+      probe.width > UPLOAD_MAX_WIDTH ? [{ resize: { width: UPLOAD_MAX_WIDTH } }] : [];
+    const result = await ImageManipulator.manipulateAsync(uri, actions, {
+      compress: UPLOAD_JPEG_QUALITY,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true,
+    });
+    if (result.base64) {
+      return { base64: result.base64, mimeType: 'image/jpeg' };
+    }
+  } catch {
+    // Fall back to the original file below.
+  }
+
+  return readPhotoBase64(uri);
 }

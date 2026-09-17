@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, type IconName } from '@/components/icon';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useRef, useState } from 'react';
 import {
@@ -135,7 +135,7 @@ function ShapeLayer({ shapes, draft }: { shapes: Annotation[]; draft: Annotation
   );
 }
 
-const TOOLS: { id: Tool; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+const TOOLS: { id: Tool; label: string; icon: IconName }[] = [
   { id: 'circle', label: 'Circle', icon: 'ellipse-outline' },
   { id: 'arrow', label: 'Arrow', icon: 'arrow-forward-outline' },
   { id: 'draw', label: 'Draw', icon: 'brush-outline' },
@@ -328,8 +328,10 @@ export function PhotoAnnotator({ visible, uri, onClose, onSaved }: Props) {
       // Always write a NEW file — original photo URI is never overwritten.
       const captured = await captureRef(captureViewRef, {
         format: 'jpg',
-        quality: 0.92,
+        quality: 0.95,
         result: 'tmpfile',
+        // Screen canvas is ~phone width; bump pixel density so PDF embed stays sharp/wide.
+        pixelRatio: 3,
       });
       const dest = `${FileSystem.documentDirectory}annotated_copy_${Date.now()}.jpg`;
       await FileSystem.copyAsync({ from: captured, to: dest });
@@ -390,7 +392,7 @@ export function PhotoAnnotator({ visible, uri, onClose, onSaved }: Props) {
           <View style={styles.toolbar}>
             <View style={styles.pencilRow}>
               <View style={styles.pencilIcon}>
-                <Ionicons color="#133A42" name="pencil" size={20} />
+                <Icon color="#133A42" name="pencil" size={20} />
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolScroll}>
                 {TOOLS.map((entry) => {
@@ -401,7 +403,7 @@ export function PhotoAnnotator({ visible, uri, onClose, onSaved }: Props) {
                       style={[styles.toolBtn, active && styles.toolBtnOn]}
                       onPress={() => setTool((current) => (current === entry.id ? null : entry.id))}
                     >
-                      <Ionicons color={active ? '#FFFFFF' : '#D2E0E5'} name={entry.icon} size={18} />
+                      <Icon color={active ? '#FFFFFF' : '#D2E0E5'} name={entry.icon} size={18} />
                       <Text style={[styles.toolLabel, active && styles.toolLabelOn]}>{entry.label}</Text>
                     </Pressable>
                   );
@@ -415,7 +417,7 @@ export function PhotoAnnotator({ visible, uri, onClose, onSaved }: Props) {
                 onPress={onUndo}
                 disabled={!shapes.length || saving}
               >
-                <Ionicons color="#FFFFFF" name="arrow-undo-outline" size={16} />
+                <Icon color="#FFFFFF" name="arrow-undo-outline" size={16} />
                 <Text style={styles.secondaryText}>Undo</Text>
               </Pressable>
               <Pressable
@@ -423,7 +425,7 @@ export function PhotoAnnotator({ visible, uri, onClose, onSaved }: Props) {
                 onPress={onRedo}
                 disabled={!redoStack.length || saving}
               >
-                <Ionicons color="#FFFFFF" name="arrow-redo-outline" size={16} />
+                <Icon color="#FFFFFF" name="arrow-redo-outline" size={16} />
                 <Text style={styles.secondaryText}>Redo</Text>
               </Pressable>
             </View>

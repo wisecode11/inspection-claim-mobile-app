@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, type IconName } from '@/components/icon';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -47,14 +47,14 @@ function DetailRow({
   label,
   value,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IconName;
   label: string;
   value: string;
 }) {
   return (
     <View style={styles.detailRow}>
       <View style={styles.detailIcon}>
-        <Ionicons color="#5C6F78" name={icon} size={17} />
+        <Icon color="#5C6F78" name={icon} size={17} />
       </View>
       <View style={styles.detailCopy}>
         <Text style={styles.detailLabel}>{label}</Text>
@@ -146,7 +146,7 @@ export default function PropertyScreen() {
           />
         ) : (
           <View style={styles.mapFallback}>
-            <Ionicons color={Brand.muted} name="map-outline" size={36} />
+            <Icon color={Brand.muted} name="map-outline" size={36} />
             <Text style={styles.fallbackTitle}>Address not mapped</Text>
             <Text style={styles.fallbackText}>
               {data.geocodeError ||
@@ -178,11 +178,11 @@ export default function PropertyScreen() {
             onPress={() => router.back()}
             style={styles.headerBtn}
           >
-            <Ionicons color="#FFFFFF" name="chevron-back" size={22} />
+            <Icon color="#FFFFFF" name="chevron-back" size={22} />
           </Pressable>
           <Text style={styles.headerTitle}>Property Details</Text>
           <Pressable accessibilityRole="button" hitSlop={10} style={styles.headerBtn}>
-            <Ionicons color="#FFFFFF" name="ellipsis-vertical" size={20} />
+            <Icon color="#FFFFFF" name="ellipsis-vertical" size={20} />
           </Pressable>
         </View>
       </View>
@@ -246,7 +246,7 @@ export default function PropertyScreen() {
               <ActivityIndicator color={HeroPrimary} />
             ) : (
               <>
-                <Ionicons color={HeroPrimary} name="checkmark-circle-outline" size={19} />
+                <Icon color={HeroPrimary} name="checkmark-circle-outline" size={19} />
                 <Text style={styles.confirmText}>Confirm location</Text>
               </>
             )}
@@ -257,7 +257,7 @@ export default function PropertyScreen() {
             style={({ pressed }) => [styles.startButton, pressed && styles.pressed]}
           >
             <Text style={styles.startButtonText}>Start inspection</Text>
-            <Ionicons color="#FFFFFF" name="chevron-forward" size={18} />
+            <Icon color="#FFFFFF" name="chevron-forward" size={18} />
           </Pressable>
         </View>
       </View>
@@ -271,7 +271,7 @@ export default function PropertyScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalIcon}>
-              <Ionicons color={ConfirmedGreen} name="checkmark-circle" size={30} />
+              <Icon color={ConfirmedGreen} name="checkmark-circle" size={30} />
             </View>
             <Text style={styles.modalTitle}>Location confirmed</Text>
             <Text style={styles.modalCopy}>

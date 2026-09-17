@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useState } from 'react';
@@ -324,8 +324,8 @@ export function SlideToConfirm({
       <GestureDetector gesture={pan}>
         <Animated.View style={[styles.thumb, thumbStyle]}>
           <View style={styles.chevronRow}>
-            <Ionicons color={Brand.accent} name="chevron-forward" size={19} />
-            <Ionicons
+            <Icon color={Brand.accent} name="chevron-forward" size={19} />
+            <Icon
               color={CHEVRON_MUTED}
               name="chevron-forward"
               size={19}

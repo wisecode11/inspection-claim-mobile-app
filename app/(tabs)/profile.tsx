@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, type IconName } from '@/components/icon';
 import { CommonActions } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { useFocusEffect, useNavigation } from 'expo-router';
@@ -66,7 +66,7 @@ function InfoIconRow({
   value,
   last = false,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IconName;
   label: string;
   value: string;
   last?: boolean;
@@ -74,7 +74,7 @@ function InfoIconRow({
   return (
     <View style={[styles.infoRow, last && styles.infoRowLast]}>
       <View style={styles.infoIconWrap}>
-        <Ionicons color={Brand.accent} name={icon} size={18} />
+        <Icon color={Brand.accent} name={icon} size={18} />
       </View>
       <View style={styles.infoCopy}>
         <Text style={styles.infoLabel}>{label}</Text>
@@ -90,7 +90,7 @@ function CompanyRow({
   value,
   last = false,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IconName;
   label: string;
   value: string;
   last?: boolean;
@@ -101,7 +101,7 @@ function CompanyRow({
         <Text style={styles.infoLabel}>{label}</Text>
         <Text style={styles.infoValue}>{value || '—'}</Text>
       </View>
-      <Ionicons color={Brand.soft} name={icon} size={20} />
+      <Icon color={Brand.soft} name={icon} size={20} />
     </View>
   );
 }
@@ -420,7 +420,7 @@ export default function ProfileScreen() {
             style={styles.topBarSide}
           >
             
-            <Ionicons color="#DC2626" name="log-out-outline" size={22} />
+            <Icon color="#DC2626" name="log-out-outline" size={22} />
           </Pressable>
         </View>
 
@@ -527,7 +527,7 @@ export default function ProfileScreen() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalIcon}>
-              <Ionicons color={Brand.accent} name="log-out-outline" size={26} />
+              <Icon color={Brand.accent} name="log-out-outline" size={26} />
             </View>
             <Text style={styles.modalTitle}>Log out?</Text>
             <Text style={styles.modalCopy}>
@@ -727,8 +727,8 @@ const styles = StyleSheet.create({
   },
   bodySheet: {
     backgroundColor: BodyBg,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     flex: 1,
     marginTop: -14,
     overflow: 'hidden',

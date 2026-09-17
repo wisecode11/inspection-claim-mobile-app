@@ -1,10 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { Icon } from '@/components/icon';
 import { Brand } from '@/constants/theme';
 
 const TAB_BAR_CONTENT_HEIGHT = 56;
@@ -36,7 +36,7 @@ export default function TabLayout() {
           title: 'Home',
           tabBarIcon: ({ color, focused, size }) => (
             <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-              <Ionicons
+              <Icon
                 color={color}
                 name={focused ? 'home' : 'home-outline'}
                 size={focused ? size + 1 : size}
@@ -51,7 +51,7 @@ export default function TabLayout() {
           title: 'Jobs',
           tabBarIcon: ({ color, focused, size }) => (
             <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-              <Ionicons
+              <Icon
                 color={color}
                 name={focused ? 'clipboard' : 'clipboard-outline'}
                 size={focused ? size + 1 : size}
@@ -66,7 +66,7 @@ export default function TabLayout() {
           title: 'Profile',
           tabBarIcon: ({ color, focused, size }) => (
             <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-              <Ionicons
+              <Icon
                 color={color}
                 name={focused ? 'person' : 'person-outline'}
                 size={focused ? size + 1 : size}

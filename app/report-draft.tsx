@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -303,7 +303,7 @@ export default function ReportDraftScreen() {
             }}
             style={({ pressed }) => [styles.addTopBtn, pressed && styles.pressed]}
           >
-            <Ionicons color={Brand.accent} name="add-circle-outline" size={18} />
+            <Icon color={Brand.accent} name="add-circle-outline" size={18} />
             <Text style={styles.addTopText}>{adding ? 'Adding…' : 'Add photo'}</Text>
           </Pressable>
         </View>
@@ -353,14 +353,14 @@ export default function ReportDraftScreen() {
                       onPress={() => openStep(photo.stepId)}
                       style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
                     >
-                      <Ionicons color={Brand.ink} name="open-outline" size={14} />
+                      <Icon color={Brand.ink} name="open-outline" size={14} />
                       <Text style={styles.actionBtnText}>Open step</Text>
                     </Pressable>
                     <Pressable
                       onPress={() => confirmDelete(photo)}
                       style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
                     >
-                      <Ionicons color={Brand.danger} name="trash-outline" size={14} />
+                      <Icon color={Brand.danger} name="trash-outline" size={14} />
                       <Text style={[styles.actionBtnText, styles.actionDanger]}>Delete</Text>
                     </Pressable>
                   </View>
@@ -426,7 +426,7 @@ export default function ReportDraftScreen() {
                         <Text style={styles.modalStepNum}>{step.number}</Text>
                       </View>
                       <Text style={styles.modalRowText}>{step.title}</Text>
-                      <Ionicons
+                      <Icon
                         color={Brand.soft}
                         name={expanded ? 'chevron-up' : 'chevron-down'}
                         size={16}
@@ -445,7 +445,7 @@ export default function ReportDraftScreen() {
                             ]}
                           >
                             <Text style={styles.subRowText}>{option.title}</Text>
-                            <Ionicons color={Brand.accent} name="add-circle-outline" size={18} />
+                            <Icon color={Brand.accent} name="add-circle-outline" size={18} />
                           </Pressable>
                         ))}
                       </View>

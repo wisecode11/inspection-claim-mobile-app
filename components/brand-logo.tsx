@@ -1,6 +1,6 @@
-import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { Icon } from '@/components/icon';
 import { Brand } from '@/constants/theme';
 
 type BrandLogoProps = {
@@ -28,7 +28,7 @@ export function BrandLogo({ size = 64, variant = 'primary', style }: BrandLogoPr
         style,
       ]}
     >
-      <Ionicons color="#FFFFFF" name="shield-outline" size={iconSize} />
+      <Icon color="#FFFFFF" name="shield-outline" size={iconSize} />
     </View>
   );
 }

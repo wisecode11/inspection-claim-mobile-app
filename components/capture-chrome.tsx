@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -90,7 +90,7 @@ export function CaptureChrome({ stepId, onSkip }: Props) {
           onPress={goPreviousStep}
           style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
         >
-          <Ionicons color="#FFFFFF" name="chevron-back" size={20} />
+          <Icon color="#FFFFFF" name="chevron-back" size={20} />
         </Pressable>
 
         <Text style={styles.stepLabel}>

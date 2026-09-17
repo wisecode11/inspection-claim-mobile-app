@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
@@ -94,7 +94,7 @@ export function SelectDropdown(props: Props) {
         <Text style={[styles.triggerText, !hasValue && styles.triggerPlaceholder]} numberOfLines={1}>
           {summary}
         </Text>
-        <Ionicons color="#526A74" name="chevron-down" size={18} />
+        <Icon color="#526A74" name="chevron-down" size={18} />
       </Pressable>
 
       {props.multi && props.selected.length > 0 ? (
@@ -106,7 +106,7 @@ export function SelectDropdown(props: Props) {
               onPress={() => props.onChange(props.selected.filter((entry) => entry !== item))}
             >
               <Text style={styles.selectedChipText}>{item}</Text>
-              <Ionicons color="#133A42" name="close" size={14} />
+              <Icon color="#133A42" name="close" size={14} />
             </Pressable>
           ))}
         </View>
@@ -147,7 +147,7 @@ export function SelectDropdown(props: Props) {
                       onPress={() => toggleOption(item)}
                     >
                       <Text style={[styles.optionText, active && styles.optionTextOn]}>{item}</Text>
-                      {active ? <Ionicons color="#FFFFFF" name="checkmark" size={18} /> : null}
+                      {active ? <Icon color="#FFFFFF" name="checkmark" size={18} /> : null}
                     </Pressable>
                   );
                 }}

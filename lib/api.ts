@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 import { loadSession, saveSession } from '@/lib/auth-storage';
 import type { InspectionData } from '@/lib/inspection-types';
-import { readPhotoBase64 } from '@/lib/photo-storage';
+import { readPhotoBase64ForUpload } from '@/lib/photo-storage';
 import type { ReportLanguagePackage } from '@/lib/report-templates';
 
 const API_PORT = 8000;
@@ -434,7 +434,7 @@ export async function uploadJobPhoto(
     takenAt?: string;
   }
 ) {
-  const { base64, mimeType } = await readPhotoBase64(photo.uri);
+  const { base64, mimeType } = await readPhotoBase64ForUpload(photo.uri);
   const payload = await requestJson<{ data?: { photo?: unknown } }>(`/api/photos/jobs/${jobId}`, {
     method: 'POST',
     token,
@@ -475,6 +475,57 @@ export async function submitInspectionPackage(
   return payload.data || {};
 }
 
+const PHOTO_UPLOAD_CONCURRENCY = 4;
+
+/**
+ * Uploads photos with a bounded worker pool instead of one-at-a-time.
+ * Each photo keeps its original `sortOrder`, so completion order never
+ * affects the final ordering on the server. As soon as one upload fails,
+ * no new uploads are started (in-flight ones are left to finish) and the
+ * first failure — naming the specific photo — is thrown, matching the
+ * previous sequential behavior.
+ */
+async function uploadPhotosWithLimit(
+  token: string,
+  jobId: string,
+  photos: InspectionData['photos'],
+): Promise<number> {
+  let cursor = 0;
+  let uploaded = 0;
+  let firstError: Error | null = null;
+
+  async function worker() {
+    while (!firstError) {
+      const index = cursor;
+      if (index >= photos.length) return;
+      cursor += 1;
+      const photo = photos[index];
+      try {
+        await uploadJobPhoto(token, jobId, {
+          clientUuid: photo.id,
+          uri: photo.uri,
+          caption: [photo.label, photo.component, photo.notes].filter(Boolean).join(' · '),
+          stepId: photo.stepId,
+          sortOrder: index,
+          takenAt: photo.createdAt,
+        });
+        uploaded += 1;
+      } catch (error) {
+        if (!firstError) {
+          const message = error instanceof Error ? error.message : 'Photo upload failed';
+          firstError = new Error(`Photo upload failed (${photo.label || index + 1}): ${message}`);
+        }
+      }
+    }
+  }
+
+  const workerCount = Math.min(PHOTO_UPLOAD_CONCURRENCY, photos.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+  if (firstError) throw firstError;
+  return uploaded;
+}
+
 /** Upload photos then submit package + PDF to admin. */
 export async function sendEvidenceToAdmin(params: {
   token: string;
@@ -486,25 +537,8 @@ export async function sendEvidenceToAdmin(params: {
     throw new Error('Missing job id');
   }
 
-  let uploaded = 0;
   const photosToUpload = data.photos.filter((photo) => photo.includeInReport !== false);
-  for (let index = 0; index < photosToUpload.length; index += 1) {
-    const photo = photosToUpload[index];
-    try {
-      await uploadJobPhoto(token, data.jobId, {
-        clientUuid: photo.id,
-        uri: photo.uri,
-        caption: [photo.label, photo.component, photo.notes].filter(Boolean).join(' · '),
-        stepId: photo.stepId,
-        sortOrder: index,
-        takenAt: photo.createdAt,
-      });
-      uploaded += 1;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Photo upload failed';
-      throw new Error(`Photo upload failed (${photo.label || index + 1}): ${message}`);
-    }
-  }
+  const uploaded = await uploadPhotosWithLimit(token, data.jobId, photosToUpload);
 
   const { readAsStringAsync } = await import('expo-file-system/legacy');
   const pdfBase64 = await readAsStringAsync(pdfUri, { encoding: 'base64' });

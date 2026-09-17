@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
@@ -137,7 +137,7 @@ export default function NotificationsScreen() {
             onPress={() => router.back()}
             style={styles.backBtn}
           >
-            <Ionicons color="#FFFFFF" name="chevron-back" size={24} />
+            <Icon color="#FFFFFF" name="chevron-back" size={24} />
           </Pressable>
           <Text style={styles.topBarTitle}>Notifications</Text>
           <View style={styles.backBtn} />
@@ -201,7 +201,7 @@ export default function NotificationsScreen() {
           ) : items.length === 0 ? (
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
-                <Ionicons color={HeroPrimary} name="notifications-outline" size={26} />
+                <Icon color={HeroPrimary} name="notifications-outline" size={26} />
               </View>
               <Text style={styles.emptyTitle}>No notifications yet</Text>
               <Text style={styles.emptyBody}>
@@ -229,7 +229,7 @@ export default function NotificationsScreen() {
                           unread ? styles.iconWrapUnread : styles.iconWrapRead,
                         ]}
                       >
-                        <Ionicons
+                        <Icon
                           color={unread ? HeroPrimary : Brand.soft}
                           name={unread ? 'notifications' : 'notifications-outline'}
                           size={18}
@@ -257,7 +257,7 @@ export default function NotificationsScreen() {
                           <Text style={styles.cardMeta}>{item.data.jobNumber}</Text>
                         ) : null}
                       </View>
-                      <Ionicons color={Brand.soft} name="chevron-forward" size={18} />
+                      <Icon color={Brand.soft} name="chevron-forward" size={18} />
                     </View>
                   </Pressable>
                 );

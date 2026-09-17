@@ -1,7 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Pressable,
   RefreshControl,
@@ -10,6 +11,15 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SafeTopGuard } from '@/components/safe-top-guard';
@@ -41,6 +51,11 @@ const STAT_CARD_OVERLAP = STAT_CARD_HEIGHT / 2;
 const TextPrimary = '#1A1A1A';
 const TextSecondary = '#6B7280';
 const StatusGold = '#C49A2C';
+const StatusBlue = "#14e614";
+const BELL_SHAKE_PAUSE_MS = 4600;
+const BELL_SHAKE_TICK_MS = 55;
+const GlowBlue = '181,203,211';
+
 
 function heroHelloName(firstName?: string) {
   const trimmed = firstName?.trim();
@@ -51,6 +66,133 @@ function heroHelloName(firstName?: string) {
 function profileInitial(firstName?: string) {
   return (firstName?.trim().charAt(0) || 'I').toUpperCase();
 }
+
+function NotificationBellButton({
+  unreadCount,
+  onPress,
+}: {
+  unreadCount: number;
+  onPress: () => void;
+}) {
+  const rotation = useSharedValue(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [focused, setFocused] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
+
+  useEffect(() => {
+    if (!focused || reduceMotion) {
+      cancelAnimation(rotation);
+      rotation.value = 0;
+      return;
+    }
+
+    const tick = { duration: BELL_SHAKE_TICK_MS, easing: Easing.linear };
+    rotation.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: BELL_SHAKE_PAUSE_MS, easing: Easing.linear }),
+        withTiming(-14, tick),
+        withTiming(14, tick),
+        withTiming(-12, tick),
+        withTiming(12, tick),
+        withTiming(-8, tick),
+        withTiming(8, tick),
+        withTiming(-4, tick),
+        withTiming(0, tick),
+      ),
+      -1,
+      false,
+    );
+
+    return () => {
+      cancelAnimation(rotation);
+    };
+  }, [focused, reduceMotion, rotation]);
+
+  const bellStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  return (
+    <Pressable
+      accessibilityLabel={
+        unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+      }
+      accessibilityRole="button"
+      hitSlop={10}
+      onPress={onPress}
+      style={styles.bellBtn}
+    >
+      <Animated.View style={bellStyle}>
+        <Icon color="rgba(255,255,255,0.9)" name="notifications-outline" size={22} />
+      </Animated.View>
+      {unreadCount > 0 ? (
+        <View style={styles.bellBadge}>
+          <Text style={styles.bellBadgeText}>
+            {unreadCount > 9 ? '9+' : String(unreadCount)}
+          </Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+
+function StatusDotBlink({ active }: { active: boolean }) {
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimation(opacity);
+      opacity.value = 1;
+      return;
+    }
+
+    // Full blink cycle ≈ 2s
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 200 }),
+        withTiming(0.2, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 200 }),
+      ),
+      -1,
+      false,
+    );
+
+    return () => {
+      cancelAnimation(opacity);
+    };
+  }, [active, opacity]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <View style={styles.statusHalo}>
+      <Animated.View style={[styles.statusDot_s, style]} />
+    </View>
+  );
+}
+
 
 function jobStats(jobs: InspectionJob[]) {
   const actionable = jobs.filter((job) => isActionableStatus(job.status));
@@ -95,7 +237,7 @@ function InProgressJobCard({
         ) : (
           <>
             <Text style={styles.jobCtaText}>Continue inspection</Text>
-            <Ionicons color="#FFFFFF" name="chevron-forward" size={18} />
+            <Icon color="#FFFFFF" name="chevron-forward" size={18} />
           </>
         )}
       </Pressable>
@@ -157,7 +299,16 @@ export default function HomeScreen() {
   const [error, setError] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const hasLoaded = useRef(false);
+  const [screenFocused, setScreenFocused] = useState(true);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      setScreenFocused(true);
+      return () => setScreenFocused(false);
+    }, []),
+  );
 
+  const motionActive = screenFocused && !reduceMotion;
   const loadUnread = useCallback(async () => {
     if (!token) {
       setUnreadCount(0);
@@ -240,33 +391,25 @@ export default function HomeScreen() {
             <Text style={styles.profileAvatarText}>{profileInitial(firstName)}</Text>
           </View>
           <View style={styles.headerCopy}>
-            <Text style={styles.portalTitle}>Inspector Portal</Text>
-            {companyName ? (
-              <Text style={styles.companyName} numberOfLines={1}>
-                {companyName}
-              </Text>
-            ) : null}
-          </View>
-          <Pressable
-            accessibilityLabel={
-              unreadCount > 0
-                ? `Notifications, ${unreadCount} unread`
-                : 'Notifications'
-            }
-            accessibilityRole="button"
-            hitSlop={10}
-            onPress={() => router.push('/notifications')}
-            style={styles.bellBtn}
-          >
-            <Ionicons color="rgba(255,255,255,0.9)" name="notifications-outline" size={22} />
-            {unreadCount > 0 ? (
-              <View style={styles.bellBadge}>
-                <Text style={styles.bellBadgeText}>
-                  {unreadCount > 9 ? '9+' : String(unreadCount)}
+            <View style={styles.statusLine}>
+              <StatusDotBlink active={motionActive} />
+              <View>
+                <Text style={styles.portalTitle}>
+                  Inspector Portal
                 </Text>
+                {companyName ? (
+                  <Text style={styles.companyName} numberOfLines={1}>
+                    {companyName}
+                  </Text>
+                ) : null}
               </View>
-            ) : null}
-          </Pressable>
+            </View>
+
+          </View>
+          <NotificationBellButton
+            unreadCount={unreadCount}
+            onPress={() => router.push('/notifications')}
+          />
         </View>
 
         <Text style={styles.heroEyebrow}>HELLO, {heroHelloName(firstName)}</Text>
@@ -320,7 +463,7 @@ export default function HomeScreen() {
           ) : showNoInProgress ? (
             <View style={styles.caughtUpSection}>
               <View style={styles.caughtUpIcon}>
-                <Ionicons color="#FFFFFF" name="checkmark" size={28} />
+                <Icon color="#FFFFFF" name="checkmark" size={28} />
               </View>
               <Text style={styles.caughtUpTitle}>No jobs in progress</Text>
               <Text style={styles.caughtUpText}>
@@ -345,11 +488,13 @@ export default function HomeScreen() {
               {inProgressJobs.length > 2 ? (
                 <Pressable
                   hitSlop={8}
-                  onPress={() => router.push('/jobs-in-progress')}
+                  onPress={() =>
+                    router.push({ pathname: '/(tabs)/jobs', params: { filter: 'inProgress' } })
+                  }
                   style={({ pressed }) => [styles.viewMoreBtn, pressed && styles.pressed]}
                 >
                   <Text style={styles.viewMoreText}>View more</Text>
-                  <Ionicons color={HeroPrimary} name="chevron-forward" size={18} />
+                  <Icon color={HeroPrimary} name="chevron-forward" size={18} />
                 </Pressable>
               ) : null}
             </View>
@@ -427,6 +572,23 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     letterSpacing: -0.2,
+     marginTop: 15
+  },
+  statusDot_s: {
+    backgroundColor: StatusBlue,
+    borderRadius: 999,
+    height: 6,
+    overflow: 'hidden',
+    width: 6,
+  },
+  statusHalo: {
+    alignItems: 'center',
+    backgroundColor: `rgba(${GlowBlue},0.18)`,
+    borderRadius: 999,
+    height: 14,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    width: 14,
   },
   companyName: {
     color: 'rgba(255,255,255,0.72)',

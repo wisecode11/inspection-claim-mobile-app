@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, type IconName } from '@/components/icon';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
@@ -112,14 +112,14 @@ function SectionBlock({
   title,
   children,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IconName;
   title: string;
   children: ReactNode;
 }) {
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Ionicons color={Brand.ink} name={icon} size={14} />
+        <Icon color={Brand.ink} name={icon} size={14} />
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
       <View style={styles.sectionCard}>{children}</View>
@@ -254,7 +254,7 @@ export default function SetupScreen() {
               {weatherBusy ? (
                 <ActivityIndicator color={tone.iconColor} size="small" />
               ) : (
-                <Ionicons color={tone.iconColor} name="cloud-outline" size={20} />
+                <Icon color={tone.iconColor} name="cloud-outline" size={20} />
               )}
             </View>
 
@@ -278,7 +278,7 @@ export default function SetupScreen() {
               style={({ pressed }) => [styles.weatherRefresh, pressed && styles.pressed]}
               onPress={() => void runWeatherLookup(true)}
             >
-              <Ionicons color={LabelMuted} name="refresh-outline" size={20} />
+              <Icon color={LabelMuted} name="refresh-outline" size={20} />
             </Pressable>
           </View>
         </View>
