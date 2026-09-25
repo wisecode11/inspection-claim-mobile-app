@@ -1,6 +1,13 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 
-import { AuthCompany, AuthUser, clearPushTokenWithApi, loginWithApi } from '@/lib/api';
+import {
+  AuthCompany,
+  AuthUser,
+  clearPushTokenWithApi,
+  loginWithApi,
+  onSessionExpired,
+  onTokenRefreshed,
+} from '@/lib/api';
 import { clearCachedJobs } from '@/lib/jobs-storage';
 import {
   clearSession,
@@ -19,6 +26,8 @@ type AuthContextValue = {
   companyName: string;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Replace the signed-in user (e.g. after a profile edit) in state and on disk. */
+  updateUser: (nextUser: AuthUser) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -48,6 +57,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
     });
   }, [token]);
 
+  useEffect(() => {
+    onTokenRefreshed((nextToken) => {
+      setToken(nextToken);
+    });
+    onSessionExpired(() => {
+      void clearSession();
+      setToken(null);
+      setUser(null);
+      setCompany(null);
+    });
+
+    return () => {
+      onTokenRefreshed(null);
+      onSessionExpired(null);
+    };
+  }, []);
+
   const login = async (email: string, password: string) => {
     const data = await loginWithApi(email, password);
     await saveSession({
@@ -76,11 +102,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   };
 
+  const updateUser = async (nextUser: AuthUser) => {
+    setUser(nextUser);
+    const session = await loadSession();
+    await saveSession({ ...session, user: nextUser });
+  };
+
   const companyName = useMemo(() => companyDisplayName(company), [company]);
 
   return (
     <AuthContext.Provider
-      value={{ isReady, token, user, company, companyName, login, logout }}
+      value={{ isReady, token, user, company, companyName, login, logout, updateUser }}
     >
       {children}
     </AuthContext.Provider>

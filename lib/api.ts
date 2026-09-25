@@ -144,6 +144,9 @@ type RequestOptions = RequestInit & {
   skipAuthRetry?: boolean;
 };
 
+/** Thrown when the request never reached the server, as opposed to the server rejecting it. */
+export class NetworkError extends Error {}
+
 function lanHostFromExpo(): string | null {
   const candidates = [
     Constants.expoConfig?.hostUri,
@@ -174,14 +177,43 @@ export function getApiBaseUrl(): string {
   return `http://${host}:${API_PORT}`;
 }
 
+/** Server-relative paths (e.g. uploaded avatars at `/api/avatars/...`) need the API host prepended. */
+export function resolveApiUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  return url.startsWith('/') ? `${getApiBaseUrl()}${url}` : url;
+}
+
 let refreshInFlight: Promise<string | null> | null = null;
+
+type TokenRefreshListener = (token: string) => void;
+type SessionExpiredListener = () => void;
+
+let tokenRefreshListener: TokenRefreshListener | null = null;
+let sessionExpiredListener: SessionExpiredListener | null = null;
+
+/**
+ * AuthContext registers this so a silently-refreshed token propagates into
+ * React state immediately, instead of every screen keeping the stale token
+ * and re-triggering a refresh-then-retry round trip on its next call.
+ */
+export function onTokenRefreshed(listener: TokenRefreshListener | null) {
+  tokenRefreshListener = listener;
+}
+
+/** AuthContext registers this to force a logout when the refresh token is dead. */
+export function onSessionExpired(listener: SessionExpiredListener | null) {
+  sessionExpiredListener = listener;
+}
 
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight;
 
   refreshInFlight = (async () => {
     const session = await loadSession();
-    if (!session.refreshToken) return null;
+    if (!session.refreshToken) {
+      sessionExpiredListener?.();
+      return null;
+    }
 
     try {
       const payload = await requestJson<{ data?: LoginApiData }>(
@@ -198,7 +230,10 @@ async function refreshAccessToken(): Promise<string | null> {
 
       const accessToken = payload.data?.tokens?.accessToken || payload.data?.token;
       const nextRefresh = payload.data?.tokens?.refreshToken || session.refreshToken;
-      if (!accessToken) return null;
+      if (!accessToken) {
+        sessionExpiredListener?.();
+        return null;
+      }
 
       await saveSession({
         token: accessToken,
@@ -206,8 +241,14 @@ async function refreshAccessToken(): Promise<string | null> {
         user: session.user,
         company: session.company,
       });
+      tokenRefreshListener?.(accessToken);
       return accessToken;
-    } catch {
+    } catch (error) {
+      // A network failure means we couldn't ask the server, not that the
+      // refresh token is invalid — don't log the user out over a dead signal.
+      if (!(error instanceof NetworkError)) {
+        sessionExpiredListener?.();
+      }
       return null;
     } finally {
       refreshInFlight = null;
@@ -232,7 +273,7 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
       },
     });
   } catch {
-    throw new Error('Cannot reach the server. Make sure the backend is running.');
+    throw new NetworkError('Cannot reach the server. Make sure the backend is running.');
   }
 
   if (response.status === 401 && token && !skipAuthRetry) {
@@ -278,6 +319,46 @@ export async function loginWithApi(email: string, password: string): Promise<Log
   }
 
   return { user, company, token, refreshToken };
+}
+
+export type ProfileUpdate = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  licenseNumber: string;
+};
+
+function userFromPayload(payload: { data?: { user?: AuthUser } }, fallback: string): AuthUser {
+  if (!payload.data?.user) {
+    throw new Error(fallback);
+  }
+  return payload.data.user;
+}
+
+export async function updateMyProfile(token: string, body: ProfileUpdate): Promise<AuthUser> {
+  const payload = await requestJson<{ data?: { user?: AuthUser } }>('/api/auth/me', {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(body),
+  });
+  return userFromPayload(payload, 'Could not update profile');
+}
+
+export async function uploadMyAvatar(token: string, base64: string): Promise<AuthUser> {
+  const payload = await requestJson<{ data?: { user?: AuthUser } }>('/api/auth/me/avatar', {
+    method: 'PUT',
+    token,
+    body: JSON.stringify({ base64 }),
+  });
+  return userFromPayload(payload, 'Could not update profile photo');
+}
+
+export async function removeMyAvatar(token: string): Promise<AuthUser> {
+  const payload = await requestJson<{ data?: { user?: AuthUser } }>('/api/auth/me/avatar', {
+    method: 'DELETE',
+    token,
+  });
+  return userFromPayload(payload, 'Could not remove profile photo');
 }
 
 export async function fetchJobs(token: string): Promise<InspectionJob[]> {

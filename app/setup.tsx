@@ -1,5 +1,6 @@
 import { Icon, type IconName } from '@/components/icon';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -234,6 +235,7 @@ export default function SetupScreen() {
 
   return (
     <View style={styles.screen}>
+      <StatusBar style="light" />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"

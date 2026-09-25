@@ -89,7 +89,8 @@
           "color": "#133A42",
           "defaultChannel": "jobs"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

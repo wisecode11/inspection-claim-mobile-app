@@ -23,7 +23,7 @@ import { Brand } from '@/constants/theme';
 
 const THUMB_WIDTH = 58;
 const TRACK_PADDING = 5;
-const TRACK_HEIGHT = 68;
+const TRACK_HEIGHT = 74;
 const THUMB_INSET = 3;
 const INNER_HEIGHT = TRACK_HEIGHT - TRACK_PADDING * 2;
 const THUMB_HEIGHT = INNER_HEIGHT - THUMB_INSET * 2;

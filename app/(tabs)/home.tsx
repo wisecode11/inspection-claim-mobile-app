@@ -1,5 +1,7 @@
 import { Icon } from '@/components/icon';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -32,6 +34,7 @@ import {
   InspectionJob,
   jobAddressText,
   jobCustomerName,
+  resolveApiUrl,
 } from '@/lib/api';
 import {
   filterInProgressJobs,
@@ -292,6 +295,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, token, companyName } = useAuth();
   const firstName = user?.profile?.firstName?.trim();
+  const avatarUri = resolveApiUrl(user?.profile?.avatarUrl);
   const [jobs, setJobs] = useState<InspectionJob[]>([]);
   const { openJob, openingJobId } = useOpenJob(setJobs);
   const [loading, setLoading] = useState(true);
@@ -380,6 +384,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
+      <StatusBar style="light" />
       <SafeTopGuard color={HeroPrimary} />
 
       <View style={[styles.heroSection, { paddingTop: 12 }]}>
@@ -387,9 +392,24 @@ export default function HomeScreen() {
         <View style={styles.heroOrbSmall} pointerEvents="none" />
 
         <View style={styles.headerRow}>
-          <View style={styles.profileAvatar}>
-            <Text style={styles.profileAvatarText}>{profileInitial(firstName)}</Text>
-          </View>
+          <Pressable
+            accessibilityLabel="Open profile"
+            accessibilityRole="button"
+            hitSlop={6}
+            onPress={() => router.push('/(tabs)/profile')}
+            style={({ pressed }) => [styles.profileAvatar, pressed && { opacity: 0.85 }]}
+          >
+            {avatarUri ? (
+              <Image
+                contentFit="cover"
+                source={{ uri: avatarUri }}
+                style={styles.profileAvatarImage}
+                transition={150}
+              />
+            ) : (
+              <Text style={styles.profileAvatarText}>{profileInitial(firstName)}</Text>
+            )}
+          </Pressable>
           <View style={styles.headerCopy}>
             <View style={styles.statusLine}>
               <StatusDotBlink active={motionActive} />
@@ -556,7 +576,12 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     height: 48,
     justifyContent: 'center',
+    overflow: 'hidden',
     width: 48,
+  },
+  profileAvatarImage: {
+    height: '100%',
+    width: '100%',
   },
   profileAvatarText: {
     color: HeroPrimary,

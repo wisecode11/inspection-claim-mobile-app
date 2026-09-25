@@ -1,5 +1,6 @@
 import { Icon } from '@/components/icon';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -123,6 +124,7 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
+      <StatusBar style="light" />
       <SafeTopGuard color={HeroPrimary} />
 
       <View style={styles.heroSection}>

@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     width: 36,
   },
   stepLabel: {
-    color: HeroMuted,
+    color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   setupText: {
-    color: HeroMuted,
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
   },

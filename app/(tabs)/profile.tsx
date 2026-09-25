@@ -1,7 +1,8 @@
 import { Icon, type IconName } from '@/components/icon';
 import { CommonActions } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { useFocusEffect, useNavigation } from 'expo-router';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import {
   AccessibilityInfo,
@@ -30,7 +31,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
-import { updatePushPreferenceWithApi } from '@/lib/api';
+import { resolveApiUrl, updatePushPreferenceWithApi } from '@/lib/api';
 import { getStableDeviceId } from '@/lib/device-id';
 import { loadPushPrefs, savePushPrefs } from '@/lib/push-prefs';
 import { syncPushRegistration } from '@/lib/push-notifications';
@@ -319,6 +320,7 @@ function AmbientGlow({ active }: { active: boolean }) {
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
+  const router = useRouter();
   const { user, company, companyName, logout, token } = useAuth();
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -382,6 +384,8 @@ export default function ProfileScreen() {
     firstName.charAt(0).toUpperCase() ||
     user?.email?.charAt(0)?.toUpperCase() ||
     'I';
+  const avatarUri = resolveApiUrl(user?.profile?.avatarUrl);
+  const openEditProfile = () => router.push('/edit-profile');
   const roleLabel = formatRole(user?.role);
   const organization = companyName || company?.name || '—';
   const regionBranch = company?.legalName || company?.name || '—';
@@ -404,13 +408,22 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
+      <StatusBar style="light" />
       <SafeTopGuard color={HeroPrimary} />
 
       <View style={[styles.heroSection, { paddingTop: 8 }]}>
         <AmbientGlow active={motionActive} />
 
         <View style={styles.topBar}>
-          <View style={styles.topBarSide} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit profile"
+            hitSlop={10}
+            onPress={openEditProfile}
+            style={styles.topBarSide}
+          >
+            <Icon color="#FFFFFF" name="pencil" size={20} />
+          </Pressable>
           <Text style={styles.topBarTitle}>Profile</Text>
           <Pressable
             accessibilityRole="button"
@@ -430,19 +443,30 @@ export default function ProfileScreen() {
           <PulseRing active={motionActive} delayMs={2200} />
           <RotatingArc active={motionActive} />
 
-          <View
+          <Pressable
+            accessibilityHint="Opens edit profile"
             accessibilityLabel={`${fullName}, ${roleLabel}`}
-            accessibilityRole="image"
+            accessibilityRole="button"
+            onPress={openEditProfile}
             style={styles.avatarRing}
           >
-            {user?.profile?.avatarUrl ? (
-              <Image source={{ uri: user.profile.avatarUrl }} style={styles.avatarImage} />
+            {avatarUri ? (
+              <Image contentFit="cover" source={{ uri: avatarUri }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>{initial}</Text>
               </View>
             )}
-          </View>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Change profile photo"
+            accessibilityRole="button"
+            hitSlop={6}
+            onPress={openEditProfile}
+            style={styles.avatarEditBadge}
+          >
+            <Icon color={HeroPrimary} name="camera-outline" size={14} />
+          </Pressable>
         </View>
 
         <Text style={styles.heroName}>{fullName}</Text>
@@ -461,7 +485,18 @@ export default function ProfileScreen() {
           style={styles.scrollView}
         >
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Inspector Information</Text>
+            <View style={styles.cardHeader}>
+              <Text style={[styles.cardTitle, styles.cardHeaderTitle]}>Inspector Information</Text>
+              <Pressable
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={openEditProfile}
+                style={({ pressed }) => [styles.editLink, pressed && styles.pressed]}
+              >
+                <Icon color={Brand.accent} name="pencil" size={14} />
+                <Text style={styles.editLinkText}>Edit</Text>
+              </Pressable>
+            </View>
             <InfoIconRow icon="mail-outline" label="Email Address" value={user?.email || ''} />
             <InfoIconRow
               icon="call-outline"
@@ -688,6 +723,21 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '300',
   },
+  // Sits on the avatar's bottom-right edge (45° point of the 88px circle inside the ring block).
+  avatarEditBadge: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderColor: HeroPrimary,
+    borderRadius: 13,
+    borderWidth: 2,
+    height: 26,
+    justifyContent: 'center',
+    left: (RING_SIZE * 1.45) / 2 + (AVATAR_SIZE / 2) * Math.SQRT1_2 - 13,
+    position: 'absolute',
+    top: (RING_SIZE * 1.45) / 2 + (AVATAR_SIZE / 2) * Math.SQRT1_2 - 13,
+    width: 26,
+    zIndex: 4,
+  },
   heroName: {
     color: '#FFFFFF',
     fontSize: 24,
@@ -753,6 +803,30 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.2,
     marginBottom: 8,
+  },
+  cardHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  cardHeaderTitle: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  editLink: {
+    alignItems: 'center',
+    backgroundColor: Brand.accentLight,
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  editLinkText: {
+    color: Brand.accent,
+    fontSize: 13,
+    fontWeight: '700',
   },
   infoRow: {
     alignItems: 'center',

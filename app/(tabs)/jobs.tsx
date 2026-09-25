@@ -1,5 +1,6 @@
 import { Icon } from '@/components/icon';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -365,6 +366,7 @@ export default function JobsScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
+      <StatusBar style="light" />
       <SafeTopGuard color={HeroPrimary} />
       <View style={[styles.heroSection, { paddingTop: 12 }]}>
         <Animated.View entering={FadeIn.duration(220)} style={styles.brandRow}>

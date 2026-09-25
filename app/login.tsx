@@ -1,5 +1,7 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { ClipboardCheck, Hammer, HardHat, Ruler, Timer } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,18 +14,227 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 
-import { BrandLogo } from '@/components/brand-logo';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useSplashDone } from '@/context/splash-context';
 
 const HeroPrimary = Brand.accent;
 const HeroTextMuted = '#8FAEB8';
 const BodyBg = Brand.sheetBg;
 const TextPrimary = '#1A1A1A';
 const TextSecondary = '#6B7280';
+const ORBIT_MS = 28000;
+
+const ORBIT_TOOLS = [
+  { Icon: Ruler, size: 32, strokeWidth: 1.6, left: 42, top: -8 },
+  { Icon: Timer, size: 28, strokeWidth: 1.7, left: 92, top: 42 },
+  { Icon: HardHat, size: 26, strokeWidth: 1.8, left: 42, top: 92 },
+  { Icon: Hammer, size: 30, strokeWidth: 1.7, left: -8, top: 42 },
+];
+
+// Intro: clipboard pops in, tools slide out from behind it one by one, then the orbit starts.
+const TOOL_CENTER_SLOT = 42;
+const INTRO_CLIPBOARD_MS = 520;
+const INTRO_TOOLS_AT_MS = 420;
+const INTRO_TOOL_STAGGER_MS = 120;
+const INTRO_TOOL_MS = 650;
+const INTRO_DONE_MS =
+  INTRO_TOOLS_AT_MS + (ORBIT_TOOLS.length - 1) * INTRO_TOOL_STAGGER_MS + INTRO_TOOL_MS;
+
+// Beam rides the same circle as `toolRing` (124 box, ring radius 50).
+const BEAM_MS = 3600;
+const BEAM_CENTER = 62;
+const BEAM_RADIUS = 50;
+const BEAM_COLOR = '#BFF3FF';
+const BEAM_TAIL_DEG = 75;
+const BEAM_SEGMENTS = 15;
+
+function ringPoint(deg: number) {
+  const rad = (deg * Math.PI) / 180;
+  return {
+    x: BEAM_CENTER + BEAM_RADIUS * Math.sin(rad),
+    y: BEAM_CENTER - BEAM_RADIUS * Math.cos(rad),
+  };
+}
+
+// Tail trails counter-clockwise behind the head (at 12 o'clock), fading out.
+const BEAM_TAIL = Array.from({ length: BEAM_SEGMENTS }, (_, i) => {
+  const step = BEAM_TAIL_DEG / BEAM_SEGMENTS;
+  const from = ringPoint(-BEAM_TAIL_DEG + i * step);
+  const to = ringPoint(-BEAM_TAIL_DEG + (i + 1) * step + 0.5);
+  const t = (i + 1) / BEAM_SEGMENTS;
+  return {
+    d: `M ${from.x} ${from.y} A ${BEAM_RADIUS} ${BEAM_RADIUS} 0 0 1 ${to.x} ${to.y}`,
+    opacity: t * t * 0.9,
+    width: 1 + t * 1.6,
+  };
+});
+
+function OrbitBeam({ start }: { start: boolean }) {
+  const spin = useSharedValue(0);
+  const visible = useSharedValue(0);
+
+  useEffect(() => {
+    if (!start) return;
+    visible.value = withDelay(INTRO_DONE_MS, withTiming(1, { duration: 500 }));
+    spin.value = withDelay(
+      INTRO_DONE_MS,
+      withRepeat(withTiming(360, { duration: BEAM_MS, easing: Easing.linear }), -1, false),
+    );
+    return () => {
+      cancelAnimation(spin);
+      cancelAnimation(visible);
+    };
+  }, [start, spin, visible]);
+
+  const spinStyle = useAnimatedStyle(() => ({
+    opacity: visible.value,
+    transform: [{ rotate: `${spin.value}deg` }],
+  }));
+  const head = ringPoint(0);
+
+  return (
+    <Animated.View style={[styles.toolOrbit, spinStyle]}>
+      <Svg height={124} width={124}>
+        <Defs>
+          <RadialGradient id="beamGlow" cx="50%" cy="50%" r="50%">
+            <Stop offset="0" stopColor={BEAM_COLOR} stopOpacity={0.85} />
+            <Stop offset="0.45" stopColor={BEAM_COLOR} stopOpacity={0.3} />
+            <Stop offset="1" stopColor={BEAM_COLOR} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        {BEAM_TAIL.map((segment, index) => (
+          <Path
+            key={index}
+            d={segment.d}
+            fill="none"
+            stroke={BEAM_COLOR}
+            strokeLinecap="round"
+            strokeOpacity={segment.opacity}
+            strokeWidth={segment.width}
+          />
+        ))}
+        <Circle cx={head.x} cy={head.y} fill="url(#beamGlow)" r={9} />
+        <Circle cx={head.x} cy={head.y} fill="#FFFFFF" r={2.2} />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+type OrbitTool = (typeof ORBIT_TOOLS)[number];
+
+/** Starts hidden behind the clipboard, then pops out to its slot on the ring. */
+function OrbitToolSpot({
+  tool,
+  index,
+  rotation,
+  start,
+}: {
+  tool: OrbitTool;
+  index: number;
+  rotation: SharedValue<number>;
+  start: boolean;
+}) {
+  const spread = useSharedValue(0);
+  const { Icon, size, strokeWidth, left, top } = tool;
+  const offsetX = TOOL_CENTER_SLOT - left;
+  const offsetY = TOOL_CENTER_SLOT - top;
+
+  useEffect(() => {
+    if (!start) return;
+    spread.value = withDelay(
+      INTRO_TOOLS_AT_MS + index * INTRO_TOOL_STAGGER_MS,
+      withTiming(1, { duration: INTRO_TOOL_MS, easing: Easing.out(Easing.back(1.5)) }),
+    );
+    return () => cancelAnimation(spread);
+  }, [start, spread, index]);
+
+  const spotStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, spread.value * 2),
+    transform: [
+      { translateX: offsetX * (1 - spread.value) },
+      { translateY: offsetY * (1 - spread.value) },
+      { scale: 0.5 + 0.5 * spread.value },
+      { rotate: `${-rotation.value}deg` },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[styles.toolSpot, { left, top }, spotStyle]}>
+      <Icon color="#FFFFFF" size={size} strokeWidth={strokeWidth} />
+    </Animated.View>
+  );
+}
+
+function ToolOrbit() {
+  const start = useSplashDone();
+  const rotation = useSharedValue(0);
+  const clipboard = useSharedValue(0);
+
+  useEffect(() => {
+    if (!start) return;
+    clipboard.value = withTiming(1, {
+      duration: INTRO_CLIPBOARD_MS,
+      easing: Easing.out(Easing.back(1.8)),
+    });
+    // Orbit only begins once every tool has settled on the ring.
+    rotation.value = withDelay(
+      INTRO_DONE_MS,
+      withRepeat(withTiming(360, { duration: ORBIT_MS, easing: Easing.linear }), -1, false),
+    );
+    return () => {
+      cancelAnimation(clipboard);
+      cancelAnimation(rotation);
+    };
+  }, [start, clipboard, rotation]);
+
+  const orbitStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, clipboard.value),
+    transform: [{ scale: 0.6 + 0.4 * clipboard.value }],
+  }));
+  const clipboardStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, clipboard.value * 1.5),
+    transform: [{ scale: 0.3 + 0.7 * clipboard.value }],
+  }));
+
+  return (
+    <View pointerEvents="none" style={styles.toolIcons}>
+      <Animated.View style={[styles.toolRing, ringStyle]} />
+      <OrbitBeam start={start} />
+      <Animated.View style={[styles.toolOrbit, orbitStyle]}>
+        {ORBIT_TOOLS.map((tool, index) => (
+          <OrbitToolSpot
+            key={tool.Icon.displayName ?? String(tool.size)}
+            index={index}
+            rotation={rotation}
+            start={start}
+            tool={tool}
+          />
+        ))}
+      </Animated.View>
+      <Animated.View style={[styles.toolCenter, clipboardStyle]}>
+        <ClipboardCheck color="#FFFFFF" size={36} strokeWidth={1.6} />
+      </Animated.View>
+    </View>
+  );
+}
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -59,6 +270,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
+      <StatusBar style="light" />
       <SafeTopGuard color={HeroPrimary} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -73,9 +285,6 @@ export default function LoginScreen() {
           style={styles.scrollView}
         >
           <View style={styles.heroSection}>
-            <View style={styles.heroOrbLarge} pointerEvents="none" />
-            <View style={styles.heroOrbSmall} pointerEvents="none" />
-
             <View style={styles.brandRow}>
               <View style={styles.logoMark}>
                 <Text style={styles.logoText}>R</Text>
@@ -83,12 +292,13 @@ export default function LoginScreen() {
               <Text style={styles.brandName}>RoofCheck</Text>
             </View>
 
-            <View style={styles.heroLogoWrap}>
-              <BrandLogo size={72} variant="primary" />
+            <View style={styles.heroTitleRow}>
+              <View style={styles.heroTitleCopy}>
+                <Text style={styles.heroEyebrow}>INSPECTOR PORTAL</Text>
+                <Text style={styles.heroTitle}>{'Welcome\nback'}</Text>
+              </View>
+              <ToolOrbit />
             </View>
-
-            <Text style={styles.heroEyebrow}>INSPECTOR PORTAL</Text>
-            <Text style={styles.heroTitle}>{'Welcome\nback'}</Text>
             <Text style={styles.heroBody}>
               {'Sign in to continue field\ninspections and capture evidence.'}
             </Text>
@@ -190,24 +400,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     position: 'relative',
   },
-  heroOrbLarge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 999,
-    height: 220,
-    position: 'absolute',
-    right: -60,
-    top: -20,
-    width: 220,
-  },
-  heroOrbSmall: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 999,
-    bottom: 40,
-    height: 120,
-    position: 'absolute',
-    right: 16,
-    width: 120,
-  },
   brandRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -233,9 +425,55 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.3,
   },
-  heroLogoWrap: {
+  heroTitleRow: {
     alignItems: 'center',
-    marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  heroTitleCopy: {
+    flexShrink: 0,
+  },
+  toolIcons: {
+    height: 124,
+    width: 124,
+  },
+  toolRing: {
+    borderColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 100,
+    left: 12,
+    position: 'absolute',
+    top: 12,
+    width: 100,
+  },
+  toolOrbit: {
+    height: 124,
+    left: 0,
+    position: 'absolute',
+    top: 0,
+    width: 124,
+  },
+  toolSpot: {
+    alignItems: 'center',
+    backgroundColor: HeroPrimary,
+    borderRadius: 999,
+    height: 40,
+    justifyContent: 'center',
+    position: 'absolute',
+    width: 40,
+  },
+  toolCenter: {
+    alignItems: 'center',
+    // Opaque disc so tools waiting at the center stay hidden behind the clipboard.
+    backgroundColor: HeroPrimary,
+    borderRadius: 999,
+    height: 40,
+    justifyContent: 'center',
+    left: 42,
+    position: 'absolute',
+    top: 42,
+    width: 40,
   },
   heroEyebrow: {
     color: HeroTextMuted,

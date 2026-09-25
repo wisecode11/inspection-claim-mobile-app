@@ -13,6 +13,7 @@ import { AppErrorBoundary } from '@/components/app-error-boundary';
 import { Brand } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { InspectionProvider } from '@/context/inspection-context';
+import { SplashDoneContext } from '@/context/splash-context';
 import { ensureAndroidChannel } from '@/lib/push-notifications';
 import {
   fetchUnreadNotificationCount,
@@ -131,52 +132,66 @@ function AppShell() {
   }, [isReady, token, pathname, router, showSplash]);
 
   return (
-    <View style={styles.root}>
-      <Stack screenOptions={{ headerShadowVisible: false, headerTintColor: Brand.ink }}>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="property"
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="setup"
-          options={{
-            title: 'Inspection Setup',
-            headerBackButtonDisplayMode: 'minimal',
-            headerStyle: { backgroundColor: '#FFFFFF' },
+    <SplashDoneContext.Provider value={!showSplash}>
+      <View style={styles.root}>
+        <Stack
+          screenOptions={{
             headerShadowVisible: false,
-            headerTitleAlign: 'left',
-            headerTitleStyle: { color: Brand.ink, fontSize: 17, fontWeight: '700' },
+            headerStyle: { backgroundColor: Brand.accent },
+            headerTintColor: '#FFFFFF',
+            headerTitleStyle: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
           }}
-        />
-        <Stack.Screen name="capture/index" options={{ headerShown: false, title: 'Field Capture' }} />
-        <Stack.Screen name="capture/[step]" options={{ headerShown: false, title: 'Field Capture' }} />
-        <Stack.Screen name="review" options={{ title: 'Review & Quality Check' }} />
-        <Stack.Screen
-          name="notifications"
-          options={{
-            headerShown: false,
-            title: 'Notifications',
-          }}
-        />
-        <Stack.Screen name="report-draft" options={{ title: 'Editable PDF Draft' }} />
-        <Stack.Screen name="report" options={{ title: 'Evidence Package' }} />
-        <Stack.Screen name="inspection" options={{ title: 'Inspection Overview' }} />
-        <Stack.Screen name="roof-inspection" options={{ title: 'Roof Inspection' }} />
-        <Stack.Screen name="photos" options={{ title: 'Inspection Photos' }} />
-        <Stack.Screen name="hail-test" options={{ title: 'Hail Test Square' }} />
-        <Stack.Screen name="damage" options={{ title: 'Damage Assessment' }} />
-        <Stack.Screen name="checklist" options={{ title: 'Collateral Checklist' }} />
-        <Stack.Screen name="weather" options={{ title: 'Weather Verification' }} />
-        <Stack.Screen name="summary" options={{ title: 'Inspection Summary' }} />
-      </Stack>
-      <StatusBar style="dark" />
-      {showSplash ? <AnimatedSplash exiting={exiting} /> : null}
-    </View>
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="property"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="setup"
+            options={{
+              title: 'Inspection Setup',
+              headerBackButtonDisplayMode: 'minimal',
+              headerTitleAlign: 'left',
+            }}
+          />
+          <Stack.Screen name="capture/index" options={{ headerShown: false, title: 'Field Capture' }} />
+          <Stack.Screen name="capture/[step]" options={{ headerShown: false, title: 'Field Capture' }} />
+          <Stack.Screen name="review" options={{ title: 'Review & Quality Check' }} />
+          <Stack.Screen
+            name="edit-profile"
+            options={{
+              title: 'Edit Profile',
+              headerBackButtonDisplayMode: 'minimal',
+              headerTitleAlign: 'left',
+            }}
+          />
+          <Stack.Screen
+            name="notifications"
+            options={{
+              headerShown: false,
+              title: 'Notifications',
+            }}
+          />
+          <Stack.Screen name="report-draft" options={{ title: 'Editable PDF Draft' }} />
+          <Stack.Screen name="report" options={{ title: 'Evidence Package' }} />
+          <Stack.Screen name="inspection" options={{ title: 'Inspection Overview' }} />
+          <Stack.Screen name="roof-inspection" options={{ title: 'Roof Inspection' }} />
+          <Stack.Screen name="photos" options={{ title: 'Inspection Photos' }} />
+          <Stack.Screen name="hail-test" options={{ title: 'Hail Test Square' }} />
+          <Stack.Screen name="damage" options={{ title: 'Damage Assessment' }} />
+          <Stack.Screen name="checklist" options={{ title: 'Collateral Checklist' }} />
+          <Stack.Screen name="weather" options={{ title: 'Weather Verification' }} />
+          <Stack.Screen name="summary" options={{ title: 'Inspection Summary' }} />
+        </Stack>
+        <StatusBar style="light" />
+        {showSplash ? <AnimatedSplash exiting={exiting} /> : null}
+      </View>
+    </SplashDoneContext.Provider>
   );
 }
 
