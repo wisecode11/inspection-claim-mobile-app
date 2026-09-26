@@ -28,6 +28,8 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   /** Replace the signed-in user (e.g. after a profile edit) in state and on disk. */
   updateUser: (nextUser: AuthUser) => Promise<void>;
+  /** Swap in a new token pair (e.g. after a password change revoked the old one). */
+  replaceSession: (next: { token: string; refreshToken: string | null; user: AuthUser }) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -108,11 +110,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
     await saveSession({ ...session, user: nextUser });
   };
 
+  const replaceSession = async (next: {
+    token: string;
+    refreshToken: string | null;
+    user: AuthUser;
+  }) => {
+    await saveSession({ ...next, company });
+    setToken(next.token);
+    setUser(next.user);
+  };
+
   const companyName = useMemo(() => companyDisplayName(company), [company]);
 
   return (
     <AuthContext.Provider
-      value={{ isReady, token, user, company, companyName, login, logout, updateUser }}
+      value={{ isReady, token, user, company, companyName, login, logout, updateUser, replaceSession }}
     >
       {children}
     </AuthContext.Provider>

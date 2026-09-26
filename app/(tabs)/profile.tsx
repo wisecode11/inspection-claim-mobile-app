@@ -2,6 +2,26 @@ import { Icon, type IconName } from '@/components/icon';
 import { CommonActions } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import {
+  Camera,
+  ClipboardCheck,
+  ClipboardList,
+  CloudHail,
+  CloudLightning,
+  Compass,
+  Drill,
+  Flashlight,
+  Hammer,
+  HardHat,
+  PencilRuler,
+  Ruler,
+  Scan,
+  Search,
+  Thermometer,
+  Wind,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -25,7 +45,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 
 import { SafeTopGuard } from '@/components/safe-top-guard';
@@ -50,6 +70,142 @@ const ARC_SIZE = AVATAR_SIZE - 16;
 const PULSE_MS = 3200;
 const ROTATE_MS = 6000;
 const DRIFT_MS = 9000;
+
+type FloatingTool = {
+  Icon: LucideIcon;
+  /** Which side of the avatar. Both sides use the same `spread`, so the layout mirrors. */
+  side: 'left' | 'right';
+  /** Horizontal distance of the tool's centre from the hero's centre line, in % of its width. */
+  spread: number;
+  /** Vertical position of the tool's centre, in % of the hero's height. */
+  top: number;
+  size: number;
+  opacity: number;
+  /** Drift direction and distance (px) for one half-cycle. */
+  dx: number;
+  dy: number;
+  /** Max tilt (deg) reached at the end of the drift. */
+  tilt: number;
+  /** One half-cycle; the full back-and-forth takes twice this. */
+  durationMs: number;
+};
+
+/** Global speed knob: < 1 is faster, > 1 is slower. Scales every tool's durationMs. */
+const FLOATING_DURATION_SCALE = 0.4;
+/** Global visibility knob: multiplies every tool's opacity. */
+const FLOATING_OPACITY_SCALE = 3.2;
+
+// Seven tools per side, mirrored by `spread`, all inside the oval that starts below the top bar
+// and wraps the avatar + name. Kept clear: the avatar's pulse rings and the name/status block.
+// Sizes vary so the two sides read as balanced, not copy-pasted.
+const FLOATING_TOOLS: FloatingTool[] = [
+  // Top band, just under the title bar (mirrored pairs + one centred under "Profile")
+  { Icon: Wind, side: 'left', spread: 41, top: 26, size: 22, opacity: 0.13, dx: 6, dy: 5, tilt: 8, durationMs: 14500 },
+  { Icon: Search, side: 'left', spread: 28, top: 18, size: 18, opacity: 0.15, dx: -5, dy: 5, tilt: -10, durationMs: 12000 },
+  { Icon: CloudLightning, side: 'left', spread: 0, top: 17, size: 20, opacity: 0.13, dx: 6, dy: 4, tilt: 6, durationMs: 15000 },
+  { Icon: Hammer, side: 'right', spread: 28, top: 18, size: 22, opacity: 0.13, dx: 5, dy: 5, tilt: 10, durationMs: 13500 },
+  { Icon: Ruler, side: 'right', spread: 41, top: 26, size: 18, opacity: 0.15, dx: -6, dy: 5, tilt: -8, durationMs: 12500 },
+  // Left side
+  { Icon: Ruler, side: 'left', spread: 18, top: 27, size: 18, opacity: 0.15, dx: 6, dy: 5, tilt: 10, durationMs: 12500 },
+  { Icon: Hammer, side: 'left', spread: 33, top: 38, size: 30, opacity: 0.13, dx: -6, dy: 6, tilt: -12, durationMs: 14000 },
+  { Icon: CloudHail, side: 'left', spread: 43, top: 50, size: 32, opacity: 0.11, dx: 6, dy: -6, tilt: 8, durationMs: 16000 },
+  { Icon: Drill, side: 'left', spread: 29, top: 52, size: 16, opacity: 0.16, dx: -5, dy: 6, tilt: -8, durationMs: 11500 },
+  { Icon: Wrench, side: 'left', spread: 40, top: 66, size: 20, opacity: 0.14, dx: 6, dy: -5, tilt: 12, durationMs: 13500 },
+  { Icon: Camera, side: 'left', spread: 25, top: 72, size: 18, opacity: 0.14, dx: -5, dy: -5, tilt: -10, durationMs: 13000 },
+  { Icon: PencilRuler, side: 'left', spread: 37, top: 80, size: 28, opacity: 0.12, dx: 5, dy: -5, tilt: 10, durationMs: 15000 },
+  // Right side
+  { Icon: Scan, side: 'right', spread: 18, top: 27, size: 18, opacity: 0.15, dx: -6, dy: 5, tilt: -10, durationMs: 11000 },
+  { Icon: ClipboardList, side: 'right', spread: 33, top: 36, size: 28, opacity: 0.12, dx: 6, dy: 6, tilt: 12, durationMs: 15500 },
+  { Icon: HardHat, side: 'right', spread: 43, top: 50, size: 28, opacity: 0.14, dx: -6, dy: -6, tilt: -8, durationMs: 13000 },
+  { Icon: Compass, side: 'right', spread: 29, top: 52, size: 18, opacity: 0.15, dx: 5, dy: 6, tilt: 10, durationMs: 12000 },
+  { Icon: Flashlight, side: 'right', spread: 40, top: 66, size: 30, opacity: 0.11, dx: -6, dy: -5, tilt: 14, durationMs: 16500 },
+  { Icon: ClipboardCheck, side: 'right', spread: 25, top: 72, size: 18, opacity: 0.14, dx: 5, dy: -5, tilt: -12, durationMs: 14500 },
+  { Icon: Thermometer, side: 'right', spread: 37, top: 80, size: 20, opacity: 0.15, dx: -5, dy: -5, tilt: 8, durationMs: 12000 },
+];
+
+/** Centre point of a tool inside the hero, in % of width / height. */
+function toolPosition(tool: FloatingTool) {
+  const x = tool.side === 'right' ? 50 + tool.spread : 50 - tool.spread;
+  return {
+    left: `${x}%` as const,
+    top: `${tool.top}%` as const,
+  };
+}
+
+function FloatingToolIcon({
+  tool,
+  index,
+  active,
+}: {
+  tool: FloatingTool;
+  index: number;
+  active: boolean;
+}) {
+  const progress = useSharedValue(0);
+  const { Icon, size, opacity, dx, dy, tilt, durationMs } = tool;
+  const { left, top } = toolPosition(tool);
+
+  useEffect(() => {
+    if (!active) {
+      cancelAnimation(progress);
+      return;
+    }
+
+    // Ping-pong 0 → 1 → 0 forever; staggered start so icons never move in sync.
+    progress.value = withDelay(
+      (index * 700) % 4000,
+      withRepeat(
+        withTiming(1, {
+          duration: durationMs * FLOATING_DURATION_SCALE,
+          easing: Easing.inOut(Easing.sin),
+        }),
+        -1,
+        true,
+      ),
+    );
+
+    return () => {
+      cancelAnimation(progress);
+    };
+  }, [active, durationMs, index, progress]);
+
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: dx * progress.value },
+      { translateY: dy * progress.value },
+      { rotate: `${tilt * progress.value}deg` },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.floatingTool,
+        {
+          left,
+          top,
+          // Position is the tool's centre, so pull it back by half its size.
+          marginLeft: -size / 2,
+          marginTop: -size / 2,
+          opacity: Math.min(1, opacity * FLOATING_OPACITY_SCALE),
+        },
+        style,
+      ]}
+    >
+      <Icon color="#FFFFFF" size={size} strokeWidth={1.6} />
+    </Animated.View>
+  );
+}
+
+function FloatingTools({ active }: { active: boolean }) {
+  return (
+    <View importantForAccessibility="no-hide-descendants" pointerEvents="none" style={styles.floatingTools}>
+      {FLOATING_TOOLS.map((tool, index) => (
+        <FloatingToolIcon active={active} index={index} key={index} tool={tool} />
+      ))}
+    </View>
+  );
+}
 
 function formatRole(role?: string) {
   if (!role) return 'Field Inspector';
@@ -299,7 +455,7 @@ function AmbientGlow({ active }: { active: boolean }) {
   const style = useAnimatedStyle(() => ({
     transform: [
       { translateX: progress.value * 14 },
-      { translateY: progress.value * -10 },
+      { translateY: progress.value * 10 },
     ],
   }));
 
@@ -318,11 +474,81 @@ function AmbientGlow({ active }: { active: boolean }) {
   );
 }
 
+/** Full-screen view of the profile photo. Tap anywhere outside the buttons to close. */
+function ProfilePhotoViewer({
+  uri,
+  name,
+  visible,
+  onClose,
+  onChangePhoto,
+}: {
+  uri: string;
+  name: string;
+  visible: boolean;
+  onClose: () => void;
+  onChangePhoto: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      transparent
+      visible={visible}
+    >
+      <Pressable
+        accessibilityLabel="Close photo"
+        onPress={onClose}
+        style={styles.viewerBackdrop}
+      >
+        <View style={[styles.viewerTopBar, { paddingTop: insets.top + 8 }]}>
+          <Text numberOfLines={1} style={styles.viewerTitle}>
+            {name}
+          </Text>
+          <Pressable
+            accessibilityLabel="Close"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={onClose}
+            style={({ pressed }) => [styles.viewerClose, pressed && styles.pressed]}
+          >
+            <Icon color="#FFFFFF" name="close" size={22} />
+          </Pressable>
+        </View>
+
+        <View style={styles.viewerImageWrap}>
+          <Image
+            accessibilityLabel={`${name} profile photo`}
+            contentFit="contain"
+            source={{ uri }}
+            style={styles.viewerImage}
+            transition={200}
+          />
+        </View>
+
+        <View style={[styles.viewerActions, { paddingBottom: insets.bottom + 20 }]}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onChangePhoto}
+            style={({ pressed }) => [styles.viewerChange, pressed && styles.pressed]}
+          >
+            <Icon color={HeroPrimary} name="camera-outline" size={18} />
+            <Text style={styles.viewerChangeText}>Change photo</Text>
+          </Pressable>
+        </View>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export default function ProfileScreen() {
   const navigation = useNavigation();
   const router = useRouter();
   const { user, company, companyName, logout, token } = useAuth();
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [pushBusy, setPushBusy] = useState(false);
@@ -413,27 +639,31 @@ export default function ProfileScreen() {
 
       <View style={[styles.heroSection, { paddingTop: 8 }]}>
         <AmbientGlow active={motionActive} />
+        <FloatingTools active={motionActive} />
 
         <View style={styles.topBar}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Edit profile"
-            hitSlop={10}
+            hitSlop={8}
             onPress={openEditProfile}
-            style={styles.topBarSide}
+            style={({ pressed }) => [styles.topBarBtn, pressed && styles.topBarBtnPressed]}
           >
-            <Icon color="#FFFFFF" name="pencil" size={20} />
+            <Icon color="#FFFFFF" name="pencil" size={18} />
           </Pressable>
           <Text style={styles.topBarTitle}>Profile</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Log out"
-            hitSlop={10}
+            hitSlop={8}
             onPress={() => setLogoutOpen(true)}
-            style={styles.topBarSide}
+            style={({ pressed }) => [
+              styles.topBarBtn,
+              styles.topBarBtnDanger,
+              pressed && styles.topBarBtnPressed,
+            ]}
           >
-            
-            <Icon color="#DC2626" name="log-out-outline" size={22} />
+            <Icon color="#FFFFFF" name="log-out-outline" size={18} />
           </Pressable>
         </View>
 
@@ -444,10 +674,10 @@ export default function ProfileScreen() {
           <RotatingArc active={motionActive} />
 
           <Pressable
-            accessibilityHint="Opens edit profile"
+            accessibilityHint={avatarUri ? 'Opens your profile photo' : 'Opens edit profile'}
             accessibilityLabel={`${fullName}, ${roleLabel}`}
             accessibilityRole="button"
-            onPress={openEditProfile}
+            onPress={avatarUri ? () => setPhotoOpen(true) : openEditProfile}
             style={styles.avatarRing}
           >
             {avatarUri ? (
@@ -518,6 +748,25 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.card}>
+            <Text style={styles.cardTitle}>Security</Text>
+            <Pressable
+              accessibilityHint="Opens the change password screen"
+              accessibilityRole="button"
+              onPress={() => router.push('/change-password')}
+              style={({ pressed }) => [styles.infoRow, styles.infoRowLast, pressed && styles.pressed]}
+            >
+              <View style={styles.infoIconWrap}>
+                <Icon color={Brand.accent} name="lock-closed-outline" size={18} />
+              </View>
+              <View style={styles.infoCopy}>
+                <Text style={styles.preferenceTitle}>Change Password</Text>
+                <Text style={styles.preferenceSub}>Update the password you use to sign in.</Text>
+              </View>
+              <Icon color={Brand.soft} name="chevron-forward" size={20} />
+            </Pressable>
+          </View>
+
+          <View style={styles.card}>
             <Text style={styles.cardTitle}>Preferences</Text>
             <PreferenceRow
               onValueChange={(next) => {
@@ -550,6 +799,19 @@ export default function ProfileScreen() {
           </Pressable>
         </ScrollView>
       </View>
+
+      {avatarUri ? (
+        <ProfilePhotoViewer
+          name={fullName}
+          onChangePhoto={() => {
+            setPhotoOpen(false);
+            openEditProfile();
+          }}
+          onClose={() => setPhotoOpen(false)}
+          uri={avatarUri}
+          visible={photoOpen}
+        />
+      ) : null}
 
       <Modal
         animationType="fade"
@@ -617,12 +879,12 @@ const styles = StyleSheet.create({
   },
   ambientGlow: {
     borderRadius: 95,
+    bottom: -48,
     height: 190,
     left: -56,
     opacity: 0.45,
     overflow: 'hidden',
     position: 'absolute',
-    top: -48,
     width: 190,
   },
   ambientGlowCore: {
@@ -657,24 +919,50 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 76,
   },
+  floatingTools: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  floatingTool: {
+    position: 'absolute',
+  },
   topBar: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 22,
     width: '100%',
-    zIndex: 2,
+    zIndex: 20,
   },
-  topBarSide: {
+  topBarBtn: {
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderColor: 'rgba(255,255,255,0.35)',
+    borderRadius: 20,
+    borderWidth: 1,
+    elevation: 4,
     height: 40,
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
     width: 40,
+  },
+  topBarBtnDanger: {
+    backgroundColor: 'rgba(220, 38, 38, 0.55)',
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  topBarBtnPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.96 }],
   },
   topBarTitle: {
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   avatarBlock: {
     alignItems: 'center',
@@ -908,6 +1196,58 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.88,
+  },
+  viewerBackdrop: {
+    backgroundColor: 'rgba(5, 18, 21, 0.94)',
+    flex: 1,
+  },
+  viewerTopBar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+  },
+  viewerTitle: {
+    color: '#FFFFFF',
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  viewerClose: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 20,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  viewerImageWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  viewerImage: {
+    aspectRatio: 1,
+    borderRadius: 16,
+    width: '100%',
+  },
+  viewerActions: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  viewerChange: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+  },
+  viewerChangeText: {
+    color: HeroPrimary,
+    fontSize: 15,
+    fontWeight: '800',
   },
   modalBackdrop: {
     alignItems: 'center',

@@ -171,6 +171,14 @@ function AppShell() {
             }}
           />
           <Stack.Screen
+            name="change-password"
+            options={{
+              title: 'Change Password',
+              headerBackButtonDisplayMode: 'minimal',
+              headerTitleAlign: 'left',
+            }}
+          />
+          <Stack.Screen
             name="notifications"
             options={{
               headerShown: false,

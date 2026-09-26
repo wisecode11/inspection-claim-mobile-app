@@ -25,6 +25,7 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SafeTopGuard } from '@/components/safe-top-guard';
+import { TypewriterGreeting } from '@/components/typewriter-greeting';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useOpenJob } from '@/hooks/use-open-job';
@@ -305,6 +306,19 @@ export default function HomeScreen() {
   const hasLoaded = useRef(false);
   const [screenFocused, setScreenFocused] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       setScreenFocused(true);
@@ -381,6 +395,24 @@ export default function HomeScreen() {
   const inProgressJobs = useMemo(() => filterInProgressJobs(jobs), [jobs]);
   const previewJobs = useMemo(() => inProgressJobs.slice(0, 2), [inProgressJobs]);
   const showNoInProgress = !loading && inProgressJobs.length === 0;
+  const greetingLines = useMemo(
+    () => [
+      {
+        text: `HELLO, ${heroHelloName(firstName)}`,
+        style: styles.heroEyebrow,
+      },
+      {
+        text: 'Ready for\nthe field',
+        style: styles.heroTitle,
+      },
+      {
+        text: "Review today's assignments, open a job,\nand capture claim-ready evidence.",
+        style: styles.heroBody,
+      },
+    ],
+    [firstName],
+  );
+  const greetingPlayKey = token && user?.id ? `login-${user.id}-${token.slice(-12)}` : 'guest';
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -432,11 +464,14 @@ export default function HomeScreen() {
           />
         </View>
 
-        <Text style={styles.heroEyebrow}>HELLO, {heroHelloName(firstName)}</Text>
-        <Text style={styles.heroTitle}>{'Ready for\nthe field'}</Text>
-        <Text style={styles.heroBody}>
-          {"Review today's assignments, open a job,\nand capture claim-ready evidence."}
-        </Text>
+        <TypewriterGreeting
+          playKey={greetingPlayKey}
+          reduceMotion={reduceMotion}
+          typeMs={32}
+          lastLineTypeMs={4}
+          lineGapMs={160}
+          lines={greetingLines}
+        />
 
         <View style={styles.statRow}>
           <StatCard loading={loading} value={stats.today} label="TODAY" />

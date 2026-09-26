@@ -344,6 +344,31 @@ export async function updateMyProfile(token: string, body: ProfileUpdate): Promi
   return userFromPayload(payload, 'Could not update profile');
 }
 
+export type PasswordChangeResult = {
+  user: AuthUser;
+  token: string;
+  refreshToken: string | null;
+};
+
+/** Changes the password. The server signs out other devices and returns fresh tokens for this one. */
+export async function changeMyPassword(
+  token: string,
+  body: { currentPassword: string; newPassword: string; deviceId?: string },
+): Promise<PasswordChangeResult> {
+  const payload = await requestJson<{ data?: LoginApiData }>('/api/auth/me/password', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ ...body, platform: Platform.OS }),
+  });
+
+  const user = payload.data?.user;
+  const nextToken = payload.data?.tokens?.accessToken || payload.data?.token;
+  if (!user || !nextToken) {
+    throw new Error('Could not update password');
+  }
+  return { user, token: nextToken, refreshToken: payload.data?.tokens?.refreshToken || null };
+}
+
 export async function uploadMyAvatar(token: string, base64: string): Promise<AuthUser> {
   const payload = await requestJson<{ data?: { user?: AuthUser } }>('/api/auth/me/avatar', {
     method: 'PUT',
