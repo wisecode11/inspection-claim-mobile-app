@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   ArrowDown,
   ArrowLeftRight,
   ArrowRight,
@@ -15,7 +16,9 @@ import {
   ChevronUp,
   Circle,
   Clipboard,
+  Clock,
   Cloud,
+  CloudOff,
   Compass,
   CreditCard,
   ExternalLink,
@@ -31,6 +34,7 @@ import {
   LogOut,
   Mail,
   Map,
+  Maximize2,
   MoreHorizontal,
   MoreVertical,
   Paintbrush,
@@ -40,6 +44,7 @@ import {
   Redo2,
   RefreshCw,
   Search,
+  Share2,
   Shield,
   SkipForward,
   SlidersHorizontal,
@@ -57,6 +62,7 @@ import {
 /** Maps the Ionicons names previously used across the app to their Lucide equivalents. */
 const ICONS = {
   'add-circle-outline': PlusCircle,
+  'alert-circle-outline': AlertCircle,
   'arrow-down-outline': ArrowDown,
   'arrow-forward': ArrowRight,
   'arrow-redo-outline': Redo2,
@@ -82,6 +88,7 @@ const ICONS = {
   close: X,
   'close-circle': XCircle,
   'cloud-outline': Cloud,
+  'cloud-offline-outline': CloudOff,
   'compass-outline': Compass,
   'document-text-outline': FileText,
   'ellipse-outline': Circle,
@@ -89,6 +96,7 @@ const ICONS = {
   'ellipsis-vertical': MoreVertical,
   'eye-off-outline': EyeOff,
   'eye-outline': Eye,
+  'expand-outline': Maximize2,
   'hand-left-outline': Hand,
   home: Home,
   'home-outline': Home,
@@ -110,10 +118,12 @@ const ICONS = {
   'play-skip-forward': SkipForward,
   'refresh-outline': RefreshCw,
   search: Search,
+  'share-outline': Share2,
   'shield-outline': Shield,
   'star-outline': Star,
   'swap-horizontal-outline': ArrowLeftRight,
   'text-outline': Type,
+  'time-outline': Clock,
   'trash-outline': Trash2,
 } satisfies Record<string, LucideIcon>;
 

@@ -24,6 +24,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ConnectionDot } from '@/components/connection-dot';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { TypewriterGreeting } from '@/components/typewriter-greeting';
 import { Brand } from '@/constants/theme';
@@ -58,7 +59,6 @@ const StatusGold = '#C49A2C';
 const StatusBlue = "#14e614";
 const BELL_SHAKE_PAUSE_MS = 4600;
 const BELL_SHAKE_TICK_MS = 55;
-const GlowBlue = '181,203,211';
 
 
 function heroHelloName(firstName?: string) {
@@ -158,44 +158,6 @@ function NotificationBellButton({
   );
 }
 
-
-function StatusDotBlink({ active }: { active: boolean }) {
-  const opacity = useSharedValue(1);
-
-  useEffect(() => {
-    if (!active) {
-      cancelAnimation(opacity);
-      opacity.value = 1;
-      return;
-    }
-
-    // Full blink cycle ≈ 2s
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 200 }),
-        withTiming(0.2, { duration: 800, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 200 }),
-      ),
-      -1,
-      false,
-    );
-
-    return () => {
-      cancelAnimation(opacity);
-    };
-  }, [active, opacity]);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
-  return (
-    <View style={styles.statusHalo}>
-      <Animated.View style={[styles.statusDot_s, style]} />
-    </View>
-  );
-}
 
 
 function jobStats(jobs: InspectionJob[]) {
@@ -444,7 +406,7 @@ export default function HomeScreen() {
           </Pressable>
           <View style={styles.headerCopy}>
             <View style={styles.statusLine}>
-              <StatusDotBlink active={motionActive} />
+              <ConnectionDot active={motionActive} onlineColor={StatusBlue} />
               <View>
                 <Text style={styles.portalTitle}>
                   Inspector Portal
@@ -633,22 +595,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.2,
      marginTop: 15
-  },
-  statusDot_s: {
-    backgroundColor: StatusBlue,
-    borderRadius: 999,
-    height: 6,
-    overflow: 'hidden',
-    width: 6,
-  },
-  statusHalo: {
-    alignItems: 'center',
-    backgroundColor: `rgba(${GlowBlue},0.18)`,
-    borderRadius: 999,
-    height: 14,
-    justifyContent: 'center',
-    overflow: 'hidden',
-    width: 14,
   },
   companyName: {
     color: 'rgba(255,255,255,0.72)',

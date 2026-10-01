@@ -27,15 +27,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
-import { useInspection } from '@/context/inspection-context';
+import { useOpenJob } from '@/hooks/use-open-job';
 import {
-  acceptJob,
   fetchJobs,
   InspectionJob,
   jobAddressText,
-  jobCoordinates,
   jobCustomerName,
-  jobDateOfLoss,
   jobDateLabel,
   jobStatusLabel,
   resolveApiUrl,
@@ -50,6 +47,12 @@ const STAT_CARD_HEIGHT = 88;
 
 function statusTone(status: string) {
   const key = status.toLowerCase();
+  if (key === 'rejected') {
+    return { bg: '#FEF2F2', text: '#B42318', border: '#F5C7C7' };
+  }
+  if (key === 'submitted' || key === 'reviewed') {
+    return { bg: '#FFF8E6', text: '#9A6700', border: '#F3DFA8' };
+  }
   if (key.includes('progress')) {
     return { bg: '#FFF4E8', text: '#C45A1A', border: '#F5DCC8' };
   }
@@ -64,8 +67,14 @@ function statusTone(status: string) {
 
 function jobAction(status: string) {
   const key = status.toLowerCase();
-  if (key.includes('complete') || key.includes('submit')) {
-    return { label: 'View inspection', variant: 'ghost' as const };
+  if (key === 'rejected') {
+    return { label: 'Fix & resend', variant: 'primary' as const };
+  }
+  if (key.includes('complete')) {
+    return { label: 'View approved report', variant: 'ghost' as const };
+  }
+  if (key.includes('submit') || key === 'reviewed') {
+    return { label: 'View approval status', variant: 'ghost' as const };
   }
   if (key.includes('progress')) {
     return { label: 'Continue inspection', variant: 'primary' as const };
@@ -80,7 +89,8 @@ function isCompletedStatus(status: string) {
 
 function isInProgressStatus(status: string) {
   const key = status.toLowerCase();
-  return key.includes('progress');
+  // Rejected packages go back to the inspector, so they count as work in progress.
+  return key.includes('progress') || key === 'rejected';
 }
 
 function isTodayStatus(status: string) {
@@ -153,6 +163,7 @@ function jobSortTimestamp(job: InspectionJob) {
 
 function statusSortRank(status: string) {
   const key = status.toLowerCase();
+  if (key === 'rejected') return 0;
   if (key.includes('progress')) return 1;
   if (key.includes('complete') || key.includes('submit')) return 3;
   if (key.includes('cancel')) return 4;
@@ -558,12 +569,12 @@ function SortMenu({
 export default function JobsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
-  const { resetForJob } = useInspection();
   const { user, token } = useAuth();
   const firstName = user?.profile?.firstName?.trim();
   const avatarUri = resolveApiUrl(user?.profile?.avatarUrl);
 
   const [jobs, setJobs] = useState<InspectionJob[]>([]);
+  const { openJob: openJobForItem } = useOpenJob(setJobs);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -836,49 +847,8 @@ export default function JobsScreen() {
           )
         }
         renderItem={({ item, index }) => {
-          const customer = jobCustomerName(item);
-          const address = jobAddressText(item);
-          const date = jobDateLabel(item);
-
           const openJob = () => {
-            void (async () => {
-              let nextStatus = item.status;
-              if (token) {
-                try {
-                  const key = item.status.toLowerCase();
-                  if (key === 'assigned' || key === 'reopened') {
-                    const started = await acceptJob(token, item.id);
-                    nextStatus = started.status;
-                    setJobs((current) =>
-                      current.map((job) =>
-                        job.id === item.id ? { ...job, status: started.status } : job,
-                      ),
-                    );
-                  }
-                } catch {
-                  // Offline / already started — continue with local draft.
-                }
-              }
-
-              const coords = jobCoordinates(item);
-              resetForJob({
-                jobId: item.id,
-                customer,
-                address: item.geocode?.formattedAddress?.trim() || address,
-                date,
-                jobStatus: nextStatus,
-                latitude: coords?.latitude ?? null,
-                longitude: coords?.longitude ?? null,
-                locationConfirmed: Boolean(item.geocode?.confirmed),
-                geocodeError: item.geocode?.error || '',
-                dateOfLoss: jobDateOfLoss(item),
-                claimNumber: item.claim?.claimNumber || '',
-                policyNumber: item.claim?.policyNumber || '',
-                phone: item.customer?.phone || '',
-                email: item.customer?.email || '',
-              });
-              router.push('/property');
-            })();
+            void openJobForItem(item);
           };
 
           return viewMode === 'grid' ? (

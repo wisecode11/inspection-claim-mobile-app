@@ -171,6 +171,14 @@ function AppShell() {
             }}
           />
           <Stack.Screen
+            name="job-status"
+            options={{
+              title: 'Submission Status',
+              headerBackButtonDisplayMode: 'minimal',
+              headerTitleAlign: 'left',
+            }}
+          />
+          <Stack.Screen
             name="change-password"
             options={{
               title: 'Change Password',

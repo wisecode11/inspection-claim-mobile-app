@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { loadSession, saveSession } from '@/lib/auth-storage';
+import { setOnline } from '@/lib/connectivity';
 import type { InspectionData } from '@/lib/inspection-types';
 import { readPhotoBase64ForUpload } from '@/lib/photo-storage';
 import type { ReportLanguagePackage } from '@/lib/report-templates';
@@ -80,10 +81,29 @@ export type JobGeocode = {
   error?: string;
 };
 
+/** Report summary included on the job detail payload (not on the list). */
+export type JobReport = {
+  id: string;
+  status: 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | string;
+  pdfStatus?: string;
+  version?: number;
+  title?: string;
+  pdfUrl?: string;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewNotes?: string;
+  rejectionReason?: string;
+  changesRequested?: string;
+};
+
 export type InspectionJob = {
   id: string;
   jobNumber?: string;
   status: string;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  completedAt?: string | null;
+  reports?: JobReport[];
   type?: string;
   notes?: string;
   createdAt?: string;
@@ -183,6 +203,25 @@ export function resolveApiUrl(url: string | null | undefined): string {
   return url.startsWith('/') ? `${getApiBaseUrl()}${url}` : url;
 }
 
+const PING_TIMEOUT_MS = 5000;
+
+/**
+ * Lightweight reachability probe for the connectivity indicator. Any HTTP
+ * response (even an error status) means the device can reach the backend.
+ */
+export async function pingApi(): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
+  try {
+    await fetch(`${getApiBaseUrl()}/`, { method: 'GET', signal: controller.signal });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 let refreshInFlight: Promise<string | null> | null = null;
 
 type TokenRefreshListener = (token: string) => void;
@@ -273,8 +312,10 @@ async function requestJson<T>(path: string, options: RequestOptions = {}): Promi
       },
     });
   } catch {
+    setOnline(false);
     throw new NetworkError('Cannot reach the server. Make sure the backend is running.');
   }
+  setOnline(true);
 
   if (response.status === 401 && token && !skipAuthRetry) {
     const nextToken = await refreshAccessToken();
@@ -738,7 +779,18 @@ export function jobAddressText(job: InspectionJob): string {
   return [address.line1, address.city, address.state].filter(Boolean).join(', ');
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  submitted: 'Pending Approval',
+  reviewed: 'Pending Approval',
+  review_required: 'Pending Approval',
+  report_generated: 'Pending Approval',
+  completed: 'Approved',
+  rejected: 'Rejected',
+};
+
 export function jobStatusLabel(status: string): string {
+  const known = STATUS_LABELS[status.toLowerCase()];
+  if (known) return known;
   return status
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());

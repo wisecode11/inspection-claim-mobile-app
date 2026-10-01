@@ -48,9 +48,11 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 
+import { ConnectionDot } from '@/components/connection-dot';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useOnlineStatus } from '@/hooks/use-online-status';
 import { resolveApiUrl, updatePushPreferenceWithApi } from '@/lib/api';
 import { getStableDeviceId } from '@/lib/device-id';
 import { loadPushPrefs, savePushPrefs } from '@/lib/push-prefs';
@@ -288,44 +290,6 @@ function PreferenceRow({
         trackColor={{ false: '#D8E0E4', true: Brand.accent }}
         value={value}
       />
-    </View>
-  );
-}
-
-function StatusDotBlink({ active }: { active: boolean }) {
-  const opacity = useSharedValue(1);
-
-  useEffect(() => {
-    if (!active) {
-      cancelAnimation(opacity);
-      opacity.value = 1;
-      return;
-    }
-
-    // Full blink cycle ≈ 2s
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 200 }),
-        withTiming(0.2, { duration: 800, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 800, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 200 }),
-      ),
-      -1,
-      false,
-    );
-
-    return () => {
-      cancelAnimation(opacity);
-    };
-  }, [active, opacity]);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
-  return (
-    <View style={styles.statusHalo}>
-      <Animated.View style={[styles.statusDot, style]} />
     </View>
   );
 }
@@ -581,6 +545,7 @@ export default function ProfileScreen() {
   );
 
   const motionActive = screenFocused && !reduceMotion;
+  const online = useOnlineStatus();
 
   const onTogglePush = async (next: boolean) => {
     setPushNotifications(next);
@@ -701,8 +666,10 @@ export default function ProfileScreen() {
 
         <Text style={styles.heroName}>{fullName}</Text>
         <View style={styles.statusLine}>
-          <StatusDotBlink active={motionActive} />
-          <Text style={styles.statusText}>Inspector · on duty</Text>
+          <ConnectionDot active={motionActive} onlineColor={StatusBlue} />
+          <Text style={[styles.statusText, !online && styles.statusTextOffline]}>
+            {online ? 'Inspector · on duty' : 'Inspector · offline'}
+          </Text>
         </View>
       </View>
 
@@ -1042,26 +1009,13 @@ const styles = StyleSheet.create({
     marginTop: 7,
     zIndex: 2,
   },
-  statusHalo: {
-    alignItems: 'center',
-    backgroundColor: `rgba(${GlowBlue},0.18)`,
-    borderRadius: 999,
-    height: 14,
-    justifyContent: 'center',
-    overflow: 'hidden',
-    width: 14,
-  },
-  statusDot: {
-    backgroundColor: StatusBlue,
-    borderRadius: 999,
-    height: 6,
-    overflow: 'hidden',
-    width: 6,
-  },
   statusText: {
     color: StatusText,
     fontSize: 12,
     fontWeight: '500',
+  },
+  statusTextOffline: {
+    color: '#FF8A8C',
   },
   bodySheet: {
     backgroundColor: BodyBg,

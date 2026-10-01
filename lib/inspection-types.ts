@@ -37,6 +37,9 @@ export type InspectionData = {
   weatherMatchStatus: string | null;
   weatherSummary: WeatherSummary | null;
 
+  /** Set when the admin sent a submitted package back; shown on the job overview. */
+  review: { state: 'rejected' | 'changes_requested'; reason: string; reviewedAt: string | null } | null;
+
   /** Editable draft narrative that appears in the Evidence Package PDF. */
   reportNarrative: string;
 };
@@ -57,6 +60,7 @@ export type JobSeed = Pick<
   | 'policyNumber'
   | 'phone'
   | 'email'
+  | 'review'
 >;
 
 export function emptyBuildNotes(): BuildNotesData {
@@ -99,6 +103,7 @@ export function createInitialInspection(overrides: Partial<InspectionData> = {})
     weatherStatus: '',
     weatherMatchStatus: null,
     weatherSummary: null,
+    review: null,
     reportNarrative: '',
     ...overrides,
   };

@@ -24,6 +24,7 @@ const HeroPrimary = Brand.accent;
 const BodyBg = Brand.sheetBg;
 const LabelMuted = '#9AA8B0';
 const ConfirmedGreen = '#1B5E20';
+const RejectedRed = '#B42318';
 const MAP_OVERLAP = 28;
 
 function formatAddressDisplay(address: string) {
@@ -130,6 +131,17 @@ export default function PropertyScreen() {
     router.push('/setup');
   };
 
+  // A sent-back report keeps its local draft, so jump straight to review when the photos
+  // are still on this device; otherwise the inspector has to capture again.
+  const hasCapturedPhotos = data.photos.length > 0;
+  const onResend = () => {
+    if (hasCapturedPhotos) {
+      router.push('/review');
+      return;
+    }
+    onStart();
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.mapHero}>
@@ -197,6 +209,37 @@ export default function PropertyScreen() {
           showsVerticalScrollIndicator={false}
           style={styles.scrollView}
         >
+          {data.review ? (
+            <View style={styles.reviewBanner}>
+              <View style={styles.reviewHeader}>
+                <View style={styles.reviewIcon}>
+                  <Icon color={RejectedRed} name="alert-circle-outline" size={20} />
+                </View>
+                <View style={styles.reviewHeaderCopy}>
+                  <Text style={styles.reviewTitle}>
+                    {data.review.state === 'rejected'
+                      ? 'Admin rejected this report'
+                      : 'Admin requested changes'}
+                  </Text>
+                  <Text style={styles.reviewSub}>Fix the issues and send it again.</Text>
+                </View>
+              </View>
+              <Text style={styles.reviewReason}>
+                {data.review.reason || 'The admin did not add a reason.'}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={onResend}
+                style={({ pressed }) => [styles.reviewButton, pressed && styles.pressed]}
+              >
+                <Icon color="#FFFFFF" name="refresh-outline" size={17} />
+                <Text style={styles.reviewButtonText}>
+                  {hasCapturedPhotos ? 'Review & resend' : 'Redo inspection & resend'}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           <View style={styles.addressBlock}>
             <View style={styles.addressTopRow}>
               <Text numberOfLines={2} style={styles.streetLine}>
@@ -294,6 +337,65 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: BodyBg,
     flex: 1,
+  },
+  reviewBanner: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#F5C7C7',
+    borderRadius: 18,
+    borderWidth: 1,
+    marginBottom: 16,
+    padding: 16,
+  },
+  reviewHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  reviewIcon: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  reviewHeaderCopy: {
+    flex: 1,
+  },
+  reviewTitle: {
+    color: RejectedRed,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  reviewSub: {
+    color: '#7A4A45',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  reviewReason: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    color: Brand.ink,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 12,
+    overflow: 'hidden',
+    padding: 12,
+  },
+  reviewButton: {
+    alignItems: 'center',
+    backgroundColor: RejectedRed,
+    borderRadius: Brand.buttonRadiusLg,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 12,
+    minHeight: 46,
+  },
+  reviewButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
   mapHero: {
     height: '42%',

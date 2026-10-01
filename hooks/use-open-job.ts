@@ -5,6 +5,7 @@ import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
 import {
   acceptJob,
+  fetchJob,
   InspectionJob,
   jobAddressText,
   jobCoordinates,
@@ -12,8 +13,17 @@ import {
   jobDateLabel,
   jobDateOfLoss,
 } from '@/lib/api';
+import type { InspectionData } from '@/lib/inspection-types';
+import { latestReport, opensStatusScreen, reviewReason, reviewStateForJob } from '@/lib/job-review';
 
 type SetJobs = Dispatch<SetStateAction<InspectionJob[]>>;
+
+type OpenJobOptions = {
+  /** Open the capture flow even for a submitted job (e.g. admin requested changes). */
+  skipStatusScreen?: boolean;
+  /** Job detail already fetched by the caller (includes reports). */
+  detail?: InspectionJob;
+};
 
 export function useOpenJob(setJobs?: SetJobs) {
   const router = useRouter();
@@ -22,13 +32,20 @@ export function useOpenJob(setJobs?: SetJobs) {
   const [openingJobId, setOpeningJobId] = useState<string | null>(null);
 
   const openJob = useCallback(
-    async (job: InspectionJob) => {
+    async (job: InspectionJob, options: OpenJobOptions = {}) => {
+      // Sent packages are read-only until the admin acts: show where they stand instead.
+      if (!options.skipStatusScreen && opensStatusScreen(job.status)) {
+        router.push({ pathname: '/job-status', params: { jobId: String(job.id) } });
+        return;
+      }
+
       const customer = jobCustomerName(job);
       const address = jobAddressText(job);
       const date = jobDateLabel(job);
 
       setOpeningJobId(String(job.id));
       let nextStatus = job.status;
+      let detail = options.detail;
 
       if (token) {
         try {
@@ -45,7 +62,22 @@ export function useOpenJob(setJobs?: SetJobs) {
         } catch {
           // Offline / already started — continue with local draft.
         }
+
+        // The list payload has no reports, so fetch the admin's reason for a sent-back job.
+        if (!detail && job.status.toLowerCase() === 'rejected') {
+          detail = await fetchJob(token, job.id).catch(() => undefined);
+        }
       }
+
+      const state = reviewStateForJob(detail ?? job);
+      const review: InspectionData['review'] =
+        state === 'rejected' || state === 'changes_requested'
+          ? {
+              state,
+              reason: detail ? reviewReason(detail) : '',
+              reviewedAt: (detail && latestReport(detail)?.reviewedAt) || null,
+            }
+          : null;
 
       const coords = jobCoordinates(job);
       resetForJob({
@@ -63,6 +95,7 @@ export function useOpenJob(setJobs?: SetJobs) {
         policyNumber: job.claim?.policyNumber || '',
         phone: job.customer?.phone || '',
         email: job.customer?.email || '',
+        review,
       });
       setOpeningJobId(null);
       router.push('/property');

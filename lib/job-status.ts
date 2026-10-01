@@ -1,6 +1,7 @@
 export function isInProgressStatus(status: string) {
   const key = status.toLowerCase();
-  return key.includes('progress');
+  // Rejected packages go back to the inspector, so they count as work in progress.
+  return key.includes('progress') || key === 'rejected';
 }
 
 export function isCompletedStatus(status: string) {

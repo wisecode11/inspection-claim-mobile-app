@@ -1,7 +1,7 @@
 import { Icon } from '@/components/icon';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,11 +16,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useOnlineStatus } from '@/hooks/use-online-status';
 import {
   fetchNotifications,
   InboxNotification,
   markAllNotificationsRead,
   markNotificationRead,
+  NetworkError,
 } from '@/lib/api';
 import { syncAppBadge } from '@/lib/notification-inbox';
 
@@ -31,6 +33,7 @@ const TextPrimary = '#1A1A1A';
 const TextSecondary = '#6B7280';
 const CardBorder = '#EBE6DF';
 const StatusGold = '#C49A2C';
+const OfflineText = '#B54708';
 
 function formatWhen(iso: string | null) {
   if (!iso) return '';
@@ -55,6 +58,9 @@ export default function NotificationsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [error, setError] = useState('');
+  const [networkFailed, setNetworkFailed] = useState(false);
+  const online = useOnlineStatus();
+  const offline = !online || networkFailed;
 
   const load = useCallback(
     async (mode: 'full' | 'refresh' = 'full') => {
@@ -65,9 +71,15 @@ export default function NotificationsScreen() {
       try {
         const result = await fetchNotifications(token, { limit: 50 });
         setItems(result.items);
+        setNetworkFailed(false);
         await syncAppBadge(result.unreadCount);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not load notifications');
+        if (err instanceof NetworkError) {
+          // Shown as the offline state below rather than a raw error message.
+          setNetworkFailed(true);
+        } else {
+          setError(err instanceof Error ? err.message : 'Could not load notifications');
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -81,6 +93,13 @@ export default function NotificationsScreen() {
       void load('full');
     }, [load]),
   );
+
+  // Refresh automatically once the connection comes back.
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    if (online && !wasOnline.current) void load('refresh');
+    wasOnline.current = online;
+  }, [online, load]);
 
   const onOpenItem = async (item: InboxNotification) => {
     if (!token) return;
@@ -114,13 +133,15 @@ export default function NotificationsScreen() {
       );
       await syncAppBadge(0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not mark all read');
+      if (err instanceof NetworkError) setNetworkFailed(true);
+      else setError(err instanceof Error ? err.message : 'Could not mark all read');
     } finally {
       setMarkingAll(false);
     }
   };
 
   const unreadCount = items.filter((item) => !item.readAt).length;
+  const markAllDisabled = markingAll || unreadCount === 0 || offline;
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -147,26 +168,32 @@ export default function NotificationsScreen() {
 
         <Text style={styles.heroEyebrow}>INBOX</Text>
         <Text style={styles.heroTitle}>
-          {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+          {offline ? "You're offline" : unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
         </Text>
         <Text style={styles.heroBody}>
-          Job assignments and field alerts for your inspections.
+          {offline
+            ? 'New job assignments and alerts will appear once you reconnect.'
+            : 'Job assignments and field alerts for your inspections.'}
         </Text>
       </View>
 
       <View style={styles.bodySheet}>
         <View style={styles.toolbar}>
           <Text style={styles.toolbarHint}>
-            {unreadCount > 0 ? 'New updates below' : 'Nothing waiting right now'}
+            {offline
+              ? 'Waiting for connection…'
+              : unreadCount > 0
+                ? 'New updates below'
+                : 'Nothing waiting right now'}
           </Text>
           <Pressable
-            disabled={markingAll || unreadCount === 0}
+            disabled={markAllDisabled}
             hitSlop={8}
             onPress={() => void onMarkAll()}
             style={({ pressed }) => [
               styles.markAllBtn,
-              (markingAll || unreadCount === 0) && styles.markAllDisabled,
-              pressed && unreadCount > 0 && !markingAll && styles.pressed,
+              markAllDisabled && styles.markAllDisabled,
+              pressed && !markAllDisabled && styles.pressed,
             ]}
           >
             {markingAll ? (
@@ -196,9 +223,37 @@ export default function NotificationsScreen() {
             </Pressable>
           ) : null}
 
+          {offline && items.length > 0 ? (
+            <View style={styles.offlineBanner}>
+              <Icon color={OfflineText} name="cloud-offline-outline" size={16} />
+              <Text style={styles.offlineBannerText}>
+                You&apos;re offline · showing the last loaded notifications
+              </Text>
+            </View>
+          ) : null}
+
           {loading ? (
             <View style={styles.centerState}>
               <ActivityIndicator color={HeroPrimary} />
+            </View>
+          ) : offline && items.length === 0 ? (
+            <View style={styles.empty}>
+              <View style={[styles.emptyIcon, styles.offlineIcon]}>
+                <Icon color={OfflineText} name="cloud-offline-outline" size={26} />
+              </View>
+              <Text style={styles.emptyTitle}>No internet connection</Text>
+              <Text style={styles.emptyBody}>
+                Check your mobile data or Wi-Fi. Your notifications will load automatically when
+                you&apos;re back online.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void load('full')}
+                style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}
+              >
+                <Icon color="#FFFFFF" name="refresh-outline" size={16} />
+                <Text style={styles.retryText}>Try again</Text>
+              </Pressable>
             </View>
           ) : items.length === 0 ? (
             <View style={styles.empty}>
@@ -505,6 +560,40 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: 6,
     textAlign: 'center',
+  },
+  offlineBanner: {
+    alignItems: 'center',
+    backgroundColor: '#FEF3E2',
+    borderRadius: 14,
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  offlineBannerText: {
+    color: OfflineText,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  offlineIcon: {
+    backgroundColor: '#FEF3E2',
+  },
+  retryBtn: {
+    alignItems: 'center',
+    backgroundColor: HeroPrimary,
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   errorBanner: {
     backgroundColor: '#FDECEC',

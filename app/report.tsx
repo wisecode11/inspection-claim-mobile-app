@@ -153,9 +153,8 @@ export default function ReportScreen() {
         pdfUri,
       });
       setSent(true);
-      if (result.job?.status) {
-        update({ jobStatus: result.job.status });
-      }
+      // Resent after a rejection: the admin's old reason no longer applies.
+      update({ jobStatus: result.job?.status || data.jobStatus, review: null });
       Alert.alert(
         'Sent to Admin',
         result.alreadySubmitted
