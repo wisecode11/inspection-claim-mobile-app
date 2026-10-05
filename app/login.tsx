@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ClipboardCheck, Hammer, HardHat, Ruler, Timer } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
@@ -27,10 +28,29 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 
+import { requireOptionalNativeModule } from 'expo';
+
+import type * as HeroTitle3DModule from '@/components/hero-title-3d';
+import type { HeroTools3D as HeroTools3DComponent } from '@/components/hero-tools-3d';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useSplashDone } from '@/context/splash-context';
+
+// expo-gl throws at import time when its native module is missing (e.g. a dev
+// build made before expo-gl was added), so only load the 3D hero when it exists.
+const GL_AVAILABLE = Boolean(requireOptionalNativeModule('ExponentGLObjectManager'));
+/* eslint-disable @typescript-eslint/no-require-imports */
+const HeroTools3D: typeof HeroTools3DComponent | null = GL_AVAILABLE
+  ? require('@/components/hero-tools-3d').HeroTools3D
+  : null;
+const heroTitle3d: typeof HeroTitle3DModule | null = GL_AVAILABLE
+  ? require('@/components/hero-title-3d')
+  : null;
+/* eslint-enable @typescript-eslint/no-require-imports */
+const HeroTitle3D = heroTitle3d?.HeroTitle3D ?? null;
+
+const HERO_TITLE_LINES = ['Welcome', 'back'];
 
 const HeroPrimary = Brand.accent;
 const HeroTextMuted = '#8FAEB8';
@@ -244,6 +264,23 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [hero3dFailed, setHero3dFailed] = useState(false);
+  const [title3dFailed, setTitle3dFailed] = useState(false);
+  const [titleWidth, setTitleWidth] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const splashDone = useSplashDone();
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
+  }, []);
 
   const onSubmit = async () => {
     const trimmedEmail = email.trim();
@@ -293,11 +330,44 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.heroTitleRow}>
-              <View style={styles.heroTitleCopy}>
+              <View
+                onLayout={(event) => setTitleWidth(Math.round(event.nativeEvent.layout.width))}
+                style={styles.heroTitleCopy}
+              >
                 <Text style={styles.heroEyebrow}>INSPECTOR PORTAL</Text>
-                <Text style={styles.heroTitle}>{'Welcome\nback'}</Text>
+                {heroTitle3d && HeroTitle3D && !title3dFailed ? (
+                  <View
+                    style={[
+                      styles.heroTitle3d,
+                      { height: heroTitle3d.heroTitle3DHeight(HERO_TITLE_LINES.length) },
+                    ]}
+                  >
+                    {titleWidth > 0 ? (
+                      <HeroTitle3D
+                        // Re-create the GL scene if the available width changes (e.g. rotation).
+                        key={titleWidth}
+                        animate={!reduceMotion}
+                        lines={HERO_TITLE_LINES}
+                        onError={() => setTitle3dFailed(true)}
+                        start={splashDone}
+                        width={titleWidth}
+                      />
+                    ) : null}
+                  </View>
+                ) : (
+                  <Text style={styles.heroTitle}>{HERO_TITLE_LINES.join('\n')}</Text>
+                )}
               </View>
-              <ToolOrbit />
+              {hero3dFailed || !HeroTools3D ? (
+                <ToolOrbit />
+              ) : (
+                <HeroTools3D
+                  animate={!reduceMotion}
+                  onError={() => setHero3dFailed(true)}
+                  size={140}
+                  start={splashDone}
+                />
+              )}
             </View>
             <Text style={styles.heroBody}>
               {'Sign in to continue field\ninspections and capture evidence.'}
@@ -431,7 +501,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   heroTitleCopy: {
-    flexShrink: 0,
+    flex: 1,
+    marginRight: 8,
+    minWidth: 0,
+  },
+  heroTitle3d: {
+    // Text baseline in the 3D view already includes its own top padding.
+    marginTop: 8,
   },
   toolIcons: {
     height: 124,

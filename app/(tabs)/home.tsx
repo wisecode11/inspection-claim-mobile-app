@@ -16,6 +16,7 @@ import {
 import Animated, {
   cancelAnimation,
   Easing,
+  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -24,11 +25,16 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { requireOptionalNativeModule } from 'expo';
+
 import { ConnectionDot } from '@/components/connection-dot';
+import type { HeroInspection3D as HeroInspection3DComponent } from '@/components/hero-inspection-3d';
+import type { MiniScene3D as MiniScene3DComponent, MiniSceneBuilder } from '@/components/mini-scene-3d';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { TypewriterGreeting } from '@/components/typewriter-greeting';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useCountUp } from '@/hooks/use-count-up';
 import { useOpenJob } from '@/hooks/use-open-job';
 import {
   fetchJobs,
@@ -46,12 +52,34 @@ import {
 } from '@/lib/job-status';
 import { loadCachedJobs, saveCachedJobs } from '@/lib/jobs-storage';
 import { syncAppBadge } from '@/lib/notification-inbox';
+import { buildCalendarIcon, buildCheckBadgeIcon, buildProgressIcon } from '@/lib/stat-icons-3d';
+
+// expo-gl throws at import time when its native module is missing (e.g. an older
+// dev build), so only load the 3D components when the module exists.
+const GL_AVAILABLE = Boolean(requireOptionalNativeModule('ExponentGLObjectManager'));
+/* eslint-disable @typescript-eslint/no-require-imports */
+const HeroInspection3D: typeof HeroInspection3DComponent | null = GL_AVAILABLE
+  ? require('@/components/hero-inspection-3d').HeroInspection3D
+  : null;
+const MiniScene3D: typeof MiniScene3DComponent | null = GL_AVAILABLE
+  ? require('@/components/mini-scene-3d').MiniScene3D
+  : null;
+/* eslint-enable @typescript-eslint/no-require-imports */
+const STAT_ICON_SIZE = 40;
+const BADGE_ICON = buildCheckBadgeIcon(false);
+const BADGE_ICON_MUTED = buildCheckBadgeIcon(true);
+// Greeting geometry (see heroEyebrow / heroTitle styles). The scene spans from the top of
+// the eyebrow line to the bottom of the two-line title, beside them on the right.
+const EYEBROW_LINE_HEIGHT = 18;
+const TITLE_MARGIN_TOP = 14;
+const HERO_SCENE_HEIGHT = EYEBROW_LINE_HEIGHT + TITLE_MARGIN_TOP + 38 * 2 + 4; // ≈ title bottom
+const HERO_SCENE_WIDTH = 136;
 
 const BodyBg = Brand.sheetBg;
 const HeroPrimary = Brand.accent;
 const HeroPrimaryLight = '#1E5059';
 const HeroTextMuted = '#8FAEB8';
-const STAT_CARD_HEIGHT = 88;
+const STAT_CARD_HEIGHT = 116; // 3D icon + number + label
 const STAT_CARD_OVERLAP = STAT_CARD_HEIGHT / 2;
 const TextPrimary = '#1A1A1A';
 const TextSecondary = '#6B7280';
@@ -216,41 +244,73 @@ function StatCard({
   label,
   variant = 'default',
   loading,
+  index,
+  icon,
+  active,
+  reduceMotion,
+  onPress,
 }: {
   value: number;
   label: string;
   variant?: 'default' | 'active' | 'muted';
   loading: boolean;
+  /** Position in the row — staggers the entrance. */
+  index: number;
+  /** 3D icon scene; rebuilt when this changes. */
+  icon: MiniSceneBuilder;
+  /** Screen focused — pauses the 3D icon when false. */
+  active: boolean;
+  reduceMotion: boolean;
+  onPress: () => void;
 }) {
   const isActive = variant === 'active';
   const isMuted = variant === 'muted';
+  const shown = useCountUp(loading ? 0 : value, reduceMotion);
 
   return (
-    <View
-      style={[
-        styles.statCard,
-        isActive && styles.statCardActive,
-      ]}
+    <Animated.View
+      entering={reduceMotion ? undefined : FadeInDown.delay(index * 90).duration(480)}
+      style={styles.statSlot}
     >
-      <Text
-        style={[
-          styles.statNumber,
-          isActive && styles.statNumberActive,
-          isMuted && styles.statNumberMuted,
+      <Pressable
+        accessibilityLabel={loading ? `${label}, loading` : `${value} ${label.toLowerCase()}`}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.statCard,
+          isActive && styles.statCardActive,
+          pressed && styles.statCardPressed,
         ]}
       >
-        {loading ? '—' : String(value)}
-      </Text>
-      <Text
-        style={[
-          styles.statLabel,
-          isActive && styles.statLabelActive,
-          isMuted && styles.statLabelMuted,
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
+        {MiniScene3D ? (
+          <MiniScene3D
+            active={active}
+            background={isActive ? HeroPrimaryLight : '#FFFFFF'}
+            build={icon}
+            reduceMotion={reduceMotion}
+            size={STAT_ICON_SIZE}
+          />
+        ) : null}
+        <Text
+          style={[
+            styles.statNumber,
+            isActive && styles.statNumberActive,
+            isMuted && styles.statNumberMuted,
+          ]}
+        >
+          {loading ? '—' : String(shown)}
+        </Text>
+        <Text
+          style={[
+            styles.statLabel,
+            isActive && styles.statLabelActive,
+            isMuted && styles.statLabelMuted,
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -267,6 +327,7 @@ export default function HomeScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const hasLoaded = useRef(false);
   const [screenFocused, setScreenFocused] = useState(true);
+  const [greetingTop, setGreetingTop] = useState<number | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
@@ -353,6 +414,7 @@ export default function HomeScreen() {
   );
 
   const stats = jobStats(jobs);
+  const completedMuted = stats.completed === 0 && !loading;
 
   const inProgressJobs = useMemo(() => filterInProgressJobs(jobs), [jobs]);
   const previewJobs = useMemo(() => inProgressJobs.slice(0, 2), [inProgressJobs]);
@@ -382,8 +444,17 @@ export default function HomeScreen() {
       <SafeTopGuard color={HeroPrimary} />
 
       <View style={[styles.heroSection, { paddingTop: 12 }]}>
-        <View style={styles.heroOrbLarge} pointerEvents="none" />
-        <View style={styles.heroOrbSmall} pointerEvents="none" />
+        {HeroInspection3D && greetingTop !== null ? (
+          // Behind the greeting (earlier sibling), beside the title on the right.
+          <View pointerEvents="none" style={[styles.heroScene, { top: greetingTop }]}>
+            <HeroInspection3D
+              active={screenFocused}
+              height={HERO_SCENE_HEIGHT}
+              reduceMotion={reduceMotion}
+              width={HERO_SCENE_WIDTH}
+            />
+          </View>
+        ) : null}
 
         <View style={styles.headerRow}>
           <Pressable
@@ -426,23 +497,51 @@ export default function HomeScreen() {
           />
         </View>
 
-        <TypewriterGreeting
-          playKey={greetingPlayKey}
-          reduceMotion={reduceMotion}
-          typeMs={32}
-          lastLineTypeMs={4}
-          lineGapMs={160}
-          lines={greetingLines}
-        />
+        <View onLayout={(event) => setGreetingTop(Math.round(event.nativeEvent.layout.y))}>
+          <TypewriterGreeting
+            playKey={greetingPlayKey}
+            reduceMotion={reduceMotion}
+            typeMs={32}
+            lastLineTypeMs={4}
+            lineGapMs={160}
+            lines={greetingLines}
+          />
+        </View>
 
         <View style={styles.statRow}>
-          <StatCard loading={loading} value={stats.today} label="TODAY" />
-          <StatCard loading={loading} value={stats.inProgress} label="IN PROGRESS" variant="active" />
           <StatCard
+            active={screenFocused}
+            icon={buildCalendarIcon}
+            index={0}
+            label="TODAY"
             loading={loading}
-            value={stats.completed}
+            onPress={() => router.push({ pathname: '/(tabs)/jobs', params: { filter: 'all' } })}
+            reduceMotion={reduceMotion}
+            value={stats.today}
+          />
+          <StatCard
+            active={screenFocused}
+            icon={buildProgressIcon}
+            index={1}
+            label="IN PROGRESS"
+            loading={loading}
+            onPress={() => router.push({ pathname: '/(tabs)/jobs', params: { filter: 'inProgress' } })}
+            reduceMotion={reduceMotion}
+            value={stats.inProgress}
+            variant="active"
+          />
+          <StatCard
+            // Remount when the badge switches between empty and earned.
+            key={completedMuted ? 'completed-muted' : 'completed'}
+            active={screenFocused}
+            icon={completedMuted ? BADGE_ICON_MUTED : BADGE_ICON}
+            index={2}
             label="COMPLETED"
-            variant={stats.completed === 0 && !loading ? 'muted' : 'default'}
+            loading={loading}
+            onPress={() => router.push({ pathname: '/(tabs)/jobs', params: { filter: 'completed' } })}
+            reduceMotion={reduceMotion}
+            value={stats.completed}
+            variant={completedMuted ? 'muted' : 'default'}
           />
         </View>
       </View>
@@ -543,23 +642,10 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 1,
   },
-  heroOrbLarge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 999,
-    height: 240,
+  heroScene: {
     position: 'absolute',
-    right: -70,
-    top: -30,
-    width: 240,
-  },
-  heroOrbSmall: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 999,
-    bottom: 60,
-    height: 140,
-    position: 'absolute',
-    right: 20,
-    width: 140,
+    // Right edge lines up with the bell above (20pt hero padding + a little air).
+    right: 22,
   },
   headerRow: {
     alignItems: 'center',
@@ -636,6 +722,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 1.8,
+    lineHeight: EYEBROW_LINE_HEIGHT,
     textTransform: 'uppercase',
   },
   heroTitle: {
@@ -662,16 +749,18 @@ const styles = StyleSheet.create({
     marginTop: 28,
     zIndex: 10,
   },
+  statSlot: {
+    flex: 1,
+  },
   statCard: {
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     elevation: 12,
-    flex: 1,
     height: STAT_CARD_HEIGHT,
     justifyContent: 'center',
     paddingHorizontal: 4,
-    paddingVertical: 12,
+    paddingVertical: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
@@ -687,11 +776,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.28,
     shadowRadius: 20,
   },
+  statCardPressed: {
+    opacity: 0.94,
+    transform: [{ scale: 0.96 }],
+  },
   statNumber: {
     color: TextPrimary,
-    fontSize: 28,
+    fontSize: 26,
+    fontVariant: ['tabular-nums'],
     fontWeight: '800',
     letterSpacing: -0.5,
+    marginTop: 4,
   },
   statNumberActive: {
     color: '#FFFFFF',

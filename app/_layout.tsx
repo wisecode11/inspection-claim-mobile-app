@@ -8,8 +8,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import { requireOptionalNativeModule } from 'expo';
+
 import { AnimatedSplash } from '@/components/animated-splash';
 import { AppErrorBoundary } from '@/components/app-error-boundary';
+import type { Splash3D as Splash3DComponent } from '@/components/splash-3d';
 import { Brand } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { InspectionProvider } from '@/context/inspection-context';
@@ -25,8 +28,17 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   // Native splash may already be hidden in some environments.
 });
 
-const SPLASH_MIN_MS = 1800;
-const SPLASH_EXIT_MS = 400;
+// expo-gl throws at import time when its native module is missing (e.g. an older
+// dev build), so only load the 3D splash when the module exists.
+const Splash3D: typeof Splash3DComponent | null = requireOptionalNativeModule('ExponentGLObjectManager')
+  ? // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('@/components/splash-3d').Splash3D
+  : null;
+
+// The 3D splash finishes its intro at ~2.3s, then holds long enough for one light sweep
+// across the logo (2.3s–3.5s). The 2D splash is shorter.
+const SPLASH_MIN_MS = Splash3D ? 3600 : 1800;
+const SPLASH_EXIT_MS = 420;
 
 function AppShell() {
   const { isReady, token } = useAuth();
@@ -35,6 +47,7 @@ function AppShell() {
   const [minTimeDone, setMinTimeDone] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [splash3dFailed, setSplash3dFailed] = useState(false);
 
   useEffect(() => {
     void SplashScreen.hideAsync();
@@ -205,7 +218,13 @@ function AppShell() {
           <Stack.Screen name="summary" options={{ title: 'Inspection Summary' }} />
         </Stack>
         <StatusBar style="light" />
-        {showSplash ? <AnimatedSplash exiting={exiting} /> : null}
+        {showSplash ? (
+          Splash3D && !splash3dFailed ? (
+            <Splash3D exiting={exiting} onError={() => setSplash3dFailed(true)} />
+          ) : (
+            <AnimatedSplash exiting={exiting} />
+          )
+        ) : null}
       </View>
     </SplashDoneContext.Provider>
   );
