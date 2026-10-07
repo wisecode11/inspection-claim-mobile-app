@@ -134,12 +134,123 @@ export type WeatherSummary = {
   stormMatch: string;
 };
 
+/** How strong a piece of weather evidence is (see backend weather-evidence.service). */
+export type EvidenceKind = 'observed' | 'radar_estimated' | 'official_record' | 'model_indicated';
+export type EvidenceLevel = 'observed' | 'radar_estimated' | 'model_indicated' | 'none' | 'unavailable';
+
+/** One storm report / radar detection / official record, normalized across NOAA sources. */
+export type WeatherEvidenceItem = {
+  source: string;
+  evidence: EvidenceKind;
+  type: 'hail' | 'wind' | 'tornado';
+  eventType?: string;
+  occurredAt: string;
+  endedAt?: string | null;
+  durationMinutes?: number | null;
+  latitude: number;
+  longitude: number;
+  distanceMiles: number;
+  direction: string;
+  hailSizeIn?: number | null;
+  windMph?: number | null;
+  torScale?: string | null;
+  magnitudeLabel: string;
+  measured?: boolean | null;
+  reporter?: string;
+  location?: string;
+  remark?: string;
+  probability?: number | null;
+  severeProbability?: number | null;
+  radar?: string;
+  providerEventId: string;
+};
+
+export type WeatherEvidenceSource = {
+  id: string;
+  name: string;
+  evidence: EvidenceKind;
+  status: 'ok' | 'error' | 'not_ingested';
+  error?: string;
+  coverageThrough?: string | null;
+  totalInWindow?: number | null;
+};
+
+export type GeoBounds = { west: number; south: number; east: number; north: number };
+
+/** MRMS MESH hail swath: one MultiPolygon per hail-size band ("≥ minIn inches"). */
+export type HailSwath = {
+  source: string;
+  bounds: GeoBounds;
+  aspect: number;
+  thresholdsIn: number[];
+  bands: { minIn: number; geometry: { type: 'MultiPolygon'; coordinates: number[][][][] } }[];
+  resolutionDeg: number;
+  days: string[];
+};
+
+/** Base layers for the swath map (data URIs, Web Mercator, exactly `bounds`). */
+export type SwathBaseMap = {
+  bounds: GeoBounds;
+  width: number;
+  height: number;
+  layers: { id: string; dataUri: string }[];
+  attribution: string;
+};
+
+/** NOAA weather evidence snapshot for a job (stored with the verification). */
+export type WeatherEvidence = {
+  version: number;
+  generatedAt: string;
+  query: {
+    latitude: number;
+    longitude: number;
+    dateOfLoss: string;
+    windowStart: string;
+    windowEnd: string;
+    eventRadiusMiles: number;
+    historyRadiusMiles: number;
+    historyYears: number;
+  };
+  level: EvidenceLevel;
+  headline: string;
+  hail: {
+    observed: { count: number; maxSizeIn: number | null; nearest: WeatherEvidenceItem | null };
+    radar: { count: number; maxSizeIn: number | null; nearest: WeatherEvidenceItem | null };
+    /** MRMS MESH (radar-estimated hail size grid); absent on evidence v1. */
+    mesh?: {
+      atPropertyIn: number | null;
+      maxWithinRadiusIn: number | null;
+      maxWithinRadiusAt: { distanceMiles: number; direction: string } | null;
+    } | null;
+  };
+  /** Hail swath polygons from MRMS MESH, in lon/lat, plus the map box they cover. */
+  swath?: HailSwath | null;
+  wind: { observed: { count: number; maxMph: number | null; nearest: WeatherEvidenceItem | null } };
+  tornado: { observed: { count: number; nearest: WeatherEvidenceItem | null } };
+  observedReports: WeatherEvidenceItem[];
+  radarDetections: WeatherEvidenceItem[];
+  history: {
+    years: number;
+    radiusMiles: number;
+    since: string;
+    until: string;
+    coverageThrough: string | null;
+    counts: { hailDays: number; windDays: number; tornadoDays: number };
+    totalEvents: number;
+    events: WeatherEvidenceItem[];
+  } | null;
+  model: { hailCodeFound: boolean; thunderFound: boolean; windMph: number | null; rainIn: number | null } | null;
+  sources: WeatherEvidenceSource[];
+};
+
 export type WeatherVerification = {
   id: string;
   jobId: string;
   matchStatus: 'match' | 'mismatch' | 'inconclusive' | 'no_data';
   dateOfLoss?: string;
   summary: WeatherSummary;
+  /** Present for verifications made with NOAA evidence; absent on older records. */
+  evidence?: WeatherEvidence | null;
 };
 
 export type SubmitPackageResult = {
@@ -517,6 +628,20 @@ export async function fetchReportLanguage(token: string): Promise<ReportLanguage
     { method: 'GET', token }
   );
   return payload.data?.reportLanguage || {};
+}
+
+/** Satellite + roads + labels for the hail swath map, cut to exactly `bounds`. */
+export async function fetchSwathBaseMap(token: string, bounds: GeoBounds): Promise<SwathBaseMap> {
+  const params = new URLSearchParams({
+    west: String(bounds.west),
+    south: String(bounds.south),
+    east: String(bounds.east),
+    north: String(bounds.north),
+    width: '1200',
+  });
+  const payload = await requestJson<{ data?: { map?: SwathBaseMap } }>(`/api/maps/swath-base?${params}`, { token });
+  if (!payload.data?.map) throw new Error('Swath base map unavailable');
+  return payload.data.map;
 }
 
 export type StaticMapType = 'roadmap' | 'satellite';

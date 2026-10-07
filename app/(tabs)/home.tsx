@@ -1,5 +1,6 @@
 import { Icon } from '@/components/icon';
 import { Image } from 'expo-image';
+import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -46,7 +47,6 @@ import {
 } from '@/lib/api';
 import {
   filterInProgressJobs,
-  isActionableStatus,
   isCompletedStatus,
   isInProgressStatus,
 } from '@/lib/job-status';
@@ -129,10 +129,13 @@ function NotificationBellButton({
     }, []),
   );
 
+  const hasUnread = unreadCount > 0;
+
   useEffect(() => {
-    if (!focused || reduceMotion) {
+    // Only nudge for attention when there is actually something unread.
+    if (!focused || reduceMotion || !hasUnread) {
       cancelAnimation(rotation);
-      rotation.value = 0;
+      rotation.value = withTiming(0, { duration: 120 });
       return;
     }
 
@@ -156,7 +159,7 @@ function NotificationBellButton({
     return () => {
       cancelAnimation(rotation);
     };
-  }, [focused, reduceMotion, rotation]);
+  }, [focused, reduceMotion, hasUnread, rotation]);
 
   const bellStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.value}deg` }],
@@ -189,12 +192,8 @@ function NotificationBellButton({
 
 
 function jobStats(jobs: InspectionJob[]) {
-  const actionable = jobs.filter((job) => isActionableStatus(job.status));
   return {
-    today: actionable.filter((job) => {
-      const key = job.status.toLowerCase();
-      return key === 'assigned' || key === 'scheduled' || key === 'reopened';
-    }).length,
+    total: jobs.length,
     inProgress: jobs.filter((job) => isInProgressStatus(job.status)).length,
     completed: jobs.filter((job) => isCompletedStatus(job.status)).length,
   };
@@ -413,6 +412,17 @@ export default function HomeScreen() {
     }, [loadJobs, loadUnread]),
   );
 
+  // A push arriving while Home is open refreshes the bell badge right away; a new
+  // assignment also refreshes the job list and stat cards.
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener((notification) => {
+      void loadUnread();
+      const data = notification.request.content.data as { type?: string } | undefined;
+      if (data?.type === 'job_assigned') void loadJobs('refresh');
+    });
+    return () => sub.remove();
+  }, [loadJobs, loadUnread]);
+
   const stats = jobStats(jobs);
   const completedMuted = stats.completed === 0 && !loading;
 
@@ -513,11 +523,11 @@ export default function HomeScreen() {
             active={screenFocused}
             icon={buildCalendarIcon}
             index={0}
-            label="TODAY"
+            label="TOTAL"
             loading={loading}
             onPress={() => router.push({ pathname: '/(tabs)/jobs', params: { filter: 'all' } })}
             reduceMotion={reduceMotion}
-            value={stats.today}
+            value={stats.total}
           />
           <StatCard
             active={screenFocused}

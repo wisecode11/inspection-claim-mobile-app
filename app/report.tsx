@@ -16,6 +16,7 @@ import { useInspection } from '@/context/inspection-context';
 import {
   fetchJob,
   fetchPropertyMapPair,
+  fetchSwathBaseMap,
   fetchReportLanguage,
   fetchWeatherVerification,
   jobDateOfLoss,
@@ -64,6 +65,8 @@ export default function ReportScreen() {
               dateOfLoss: jobDateOfLoss(job) || data.dateOfLoss,
               jobStatus: job.status || data.jobStatus,
               weatherSummary: weather?.summary || data.weatherSummary,
+              // Keep evidence paired with the summary it came from.
+              weatherEvidence: weather ? weather.evidence ?? null : data.weatherEvidence ?? null,
               weatherMatchStatus: weather?.matchStatus || data.weatherMatchStatus,
               weatherStatus: weather?.summary?.badgeTitle || data.weatherStatus,
             };
@@ -91,7 +94,12 @@ export default function ReportScreen() {
           }
         }
 
-        const uri = await createInspectionPdf(snapshot, language, maps);
+        // Base imagery for the hail swath map; without it the swath draws on a plain background.
+        const swathBounds = snapshot.weatherEvidence?.swath?.bounds;
+        const swathBaseMap =
+          token && swathBounds ? await fetchSwathBaseMap(token, swathBounds).catch(() => null) : null;
+
+        const uri = await createInspectionPdf(snapshot, language, maps, swathBaseMap);
         if (!active) return;
         setPdfUri(uri);
         if (data.jobId) {

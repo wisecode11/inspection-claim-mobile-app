@@ -12,7 +12,10 @@ import {
   routePhotoToSection,
   sectionTitle,
 } from '@/lib/capture-steps';
+import type { SwathBaseMap } from '@/lib/api';
 import type { InspectionData } from '@/lib/inspection-types';
+import { escapeHtml, infoRow, REPORT_CSS } from '@/utils/pdf-html';
+import { renderWeatherEvidence } from '@/utils/weather-evidence-html';
 import {
   codesAndStandardsHtml,
   damageDefinitionsHtml,
@@ -43,13 +46,6 @@ function clientSectionTitle(sectionId: EvidenceSectionId) {
   return CLIENT_SECTION_TITLES[sectionId] || sectionTitle(sectionId);
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
-}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
   return new Promise<T>((resolve, reject) => {
@@ -102,13 +98,6 @@ async function embedPhotoMap(photos: PhotoItem[]) {
   return map;
 }
 
-function infoRow(label: string, value: string) {
-  return `
-    <div class="info-row">
-      <div class="info-label">${escapeHtml(label)}</div>
-      <div class="info-value">${escapeHtml(value || '—')}</div>
-    </div>`;
-}
 
 function photoCaption(photo: PhotoItem) {
   return [
@@ -179,7 +168,7 @@ function renderPropertyMaps(maps?: { roadmap: string | null; satellite: string |
     </div>`;
 
   return `
-    <h3>Hail Trace weather report</h3>
+    <h3>Property Location</h3>
     <div class="map-row">
       ${maps.roadmap ? cell(maps.roadmap, 'Property roadmap') : ''}
       ${maps.satellite ? cell(maps.satellite, 'Property satellite', 'map-cell-second') : ''}
@@ -188,8 +177,14 @@ function renderPropertyMaps(maps?: { roadmap: string | null; satellite: string |
 
 function renderWeather(
   data: InspectionData,
-  maps?: { roadmap: string | null; satellite: string | null } | null
+  maps?: { roadmap: string | null; satellite: string | null } | null,
+  swathBaseMap: SwathBaseMap | null = null
 ) {
+  if (data.weatherEvidence) {
+    return renderWeatherEvidence(data.address, data.weatherEvidence, renderPropertyMaps(maps), swathBaseMap);
+  }
+
+  // Older drafts without NOAA evidence: show the summary, clearly labelled as model-based.
   const weather = data.weatherSummary;
   if (!weather) {
     return `
@@ -222,11 +217,10 @@ function renderWeather(
       ${infoRow('Wind', weather.wind)}
       ${infoRow('Rain', weather.rain)}
       ${infoRow('Storm match', weather.stormMatch)}
-      <h3>Overall Weather History</h3>
-      <p class="narrative">
-        Third-party weather verification was attached to this job during setup. The values above summarize
-        the storm match used to support claim evaluation for this property. Full provider report pages
-        (when supplied by the weather partner) should be retained with the claim file alongside this package.
+      <p class="note">
+        These values come from a historical weather model (Open-Meteo) captured before NOAA storm-report
+        verification was available for this job. Model output indicates conditions only; it is not an observed
+        or radar measurement of hail at the property. Regenerate the report while online to include NOAA evidence.
       </p>
       ${renderPropertyMaps(maps)}
     </div>`;
@@ -267,7 +261,8 @@ function buildReportHtml(
   data: InspectionData,
   embedded: Map<string, string>,
   language?: ReportLanguagePackage | null,
-  maps?: { roadmap: string | null; satellite: string | null } | null
+  maps?: { roadmap: string | null; satellite: string | null } | null,
+  swathBaseMap: SwathBaseMap | null = null
 ) {
   const bySection = new Map<string, PhotoItem[]>();
   const reportPhotos = data.photos.filter((photo) => photo.includeInReport !== false);
@@ -308,157 +303,7 @@ function buildReportHtml(
 <html>
 <head>
   <meta charset="utf-8" />
-  <style>
-    @page { margin: 36px 32px; }
-    body {
-      font-family: "Times New Roman", Times, Georgia, serif;
-      color: #1a1a1a;
-      margin: 0;
-      padding: 0;
-      font-size: 12.5px;
-      line-height: 1.45;
-    }
-    .page { padding: 8px 4px 24px; }
-    h1 {
-      font-family: Helvetica, Arial, sans-serif;
-      font-size: 22px;
-      margin: 0 0 18px;
-      color: #111;
-      border-bottom: 2px solid #222;
-      padding-bottom: 8px;
-    }
-    h2 {
-      font-family: Helvetica, Arial, sans-serif;
-      font-size: 15px;
-      margin: 0 0 10px;
-      color: #111;
-    }
-    h3 {
-      font-family: Helvetica, Arial, sans-serif;
-      font-size: 12.5px;
-      margin: 14px 0 6px;
-      color: #222;
-    }
-    .narrative { margin: 0 0 10px; text-align: justify; }
-    .bullets { margin: 6px 0 12px 18px; padding: 0; }
-    .bullets li { margin: 0 0 5px; }
-    .block { margin: 0 0 18px; }
-    .section { margin: 0 0 18px; }
-    .page-break { page-break-before: always; }
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 5px 0;
-      border-bottom: 1px solid #ddd;
-      font-family: Helvetica, Arial, sans-serif;
-      font-size: 12px;
-    }
-    .info-label { color: #444; min-width: 38%; }
-    .info-value { font-weight: 700; text-align: right; max-width: 60%; }
-    .cover {
-      display: block;
-      width: auto;
-      max-width: 48%;
-      max-height: 280px;
-      height: auto;
-      object-fit: contain;
-      object-position: left top;
-      margin: 0 0 16px 0;
-      border: 1px solid #ccc;
-      background: #f3f3f3;
-    }
-    .section-banner {
-      font-family: Helvetica, Arial, sans-serif;
-      font-size: 18px;
-      font-weight: 700;
-      margin: 0 0 6px;
-      padding-bottom: 6px;
-      border-bottom: 2px solid #222;
-    }
-    .section-count {
-      font-family: Helvetica, Arial, sans-serif;
-      color: #666;
-      font-size: 11px;
-      margin: 0 0 12px;
-    }
-    .map-row {
-      display: flex;
-      justify-content: flex-start;
-      gap: 18px;
-      margin: 8px 0 4px;
-      page-break-inside: avoid;
-    }
-    .map-cell {
-      position: relative;
-      width: 42%;
-      max-width: 42%;
-    }
-    .map-cell-second {
-      margin-left: 34px;
-    }
-    .map-shot {
-      display: block;
-      width: 100%;
-      height: auto;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      background: #f3f3f3;
-      object-fit: cover;
-    }
-    .map-pin {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 16px;
-      height: 16px;
-      margin-left: -8px;
-      margin-top: -20px;
-      background: #e74c3c;
-      border: 2px solid #fff;
-      border-radius: 50% 50% 50% 0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.35);
-      transform: rotate(-45deg);
-    }
-    .photo-block {
-      margin: 0 0 14px;
-      page-break-inside: avoid;
-      text-align: left;
-    }
-    .photo-block + .photo-block {
-      margin-top: 70px;
-    }
-    .photo-block img,
-    .photo-block-annotated img,
-    .photo-block img.annotated {
-      display: block;
-      box-sizing: border-box;
-      width: 82%;
-      max-width: 82%;
-      height: 340px;
-      max-height: 340px;
-      object-fit: contain;
-      object-position: center center;
-      border: 1px solid #ccc;
-      background: #f3f3f3;
-      margin: 0;
-    }
-    .caption {
-      font-family: Helvetica, Arial, sans-serif;
-      font-size: 10.5px;
-      color: #444;
-      margin-top: 5px;
-      text-align: left;
-    }
-    .footer {
-      margin-top: 28px;
-      padding-top: 10px;
-      border-top: 1px solid #ccc;
-      font-family: Helvetica, Arial, sans-serif;
-      font-size: 10px;
-      color: #666;
-      text-align: center;
-    }
+  <style>${REPORT_CSS}
   </style>
 </head>
 <body>
@@ -500,7 +345,7 @@ function buildReportHtml(
       ${damageDefinitionsHtml(language)}
     </div>
 
-    ${renderWeather(data, maps)}
+    ${renderWeather(data, maps, swathBaseMap)}
 
     <div class="section page-break">
       <h2>Photographic Evidence and Supporting Documentation</h2>
@@ -547,11 +392,12 @@ function reportFileName(customer: string) {
 export async function createInspectionPdf(
   data: InspectionData,
   language?: ReportLanguagePackage | null,
-  maps?: { roadmap: string | null; satellite: string | null } | null
+  maps?: { roadmap: string | null; satellite: string | null } | null,
+  swathBaseMap: SwathBaseMap | null = null
 ) {
   const reportPhotos = data.photos.filter((photo) => photo.includeInReport !== false);
   const embedded = await embedPhotoMap(reportPhotos);
-  const html = buildReportHtml(data, embedded, language, maps);
+  const html = buildReportHtml(data, embedded, language, maps, swathBaseMap);
 
   try {
     const file = await withTimeout(
@@ -565,7 +411,7 @@ export async function createInspectionPdf(
     await FileSystem.copyAsync({ from: file.uri, to: destination });
     return destination;
   } catch {
-    const fallbackHtml = buildReportHtml(data, new Map(), language, maps);
+    const fallbackHtml = buildReportHtml(data, new Map(), language, maps, swathBaseMap);
     const file = await withTimeout(
       Print.printToFileAsync({ html: fallbackHtml, base64: false }),
       20000,

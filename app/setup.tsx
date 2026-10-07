@@ -181,6 +181,7 @@ export default function SetupScreen() {
 
         update({
           weatherSummary: weather.summary,
+          weatherEvidence: weather.evidence ?? null,
           weatherMatchStatus: weather.matchStatus,
           weatherStatus: weather.summary.stormMatch || weather.summary.badgeTitle,
         });
@@ -190,6 +191,7 @@ export default function SetupScreen() {
       } catch (error) {
         update({
           weatherSummary: null,
+          weatherEvidence: null,
           weatherMatchStatus: 'inconclusive',
           weatherStatus: '',
         });

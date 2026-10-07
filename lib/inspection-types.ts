@@ -1,5 +1,5 @@
 import type { PhotoItem, StepId, BuildNoteTextKey } from '@/lib/capture-steps';
-import type { WeatherSummary } from '@/lib/api';
+import type { WeatherEvidence, WeatherSummary } from '@/lib/api';
 
 export type BuildNotesData = {
   fields: Record<string, string>;
@@ -36,6 +36,8 @@ export type InspectionData = {
   weatherStatus: string;
   weatherMatchStatus: string | null;
   weatherSummary: WeatherSummary | null;
+  /** NOAA evidence behind the summary (observed / radar / official history). Null on older drafts. */
+  weatherEvidence?: WeatherEvidence | null;
 
   /** Set when the admin sent a submitted package back; shown on the job overview. */
   review: { state: 'rejected' | 'changes_requested'; reason: string; reviewedAt: string | null } | null;

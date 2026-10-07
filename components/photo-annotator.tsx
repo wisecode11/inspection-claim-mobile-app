@@ -329,9 +329,9 @@ export function PhotoAnnotator({ visible, uri, onClose, onSaved }: Props) {
       const captured = await captureRef(captureViewRef, {
         format: 'jpg',
         quality: 0.95,
+        // view-shot captures at the device's native pixel density by default
+        // (it has no pixelRatio option), so the copy is as sharp as the screen.
         result: 'tmpfile',
-        // Screen canvas is ~phone width; bump pixel density so PDF embed stays sharp/wide.
-        pixelRatio: 3,
       });
       const dest = `${FileSystem.documentDirectory}annotated_copy_${Date.now()}.jpg`;
       await FileSystem.copyAsync({ from: captured, to: dest });
