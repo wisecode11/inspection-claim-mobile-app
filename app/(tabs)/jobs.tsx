@@ -362,13 +362,13 @@ function JobListItem({ index, item, onOpen }: JobListItemProps) {
           <Text style={styles.addressText}>{shortAddress(address)}</Text>
           <Text style={styles.dateText}>{date}</Text>
 
-          {item.notes ? (
+          {/* {item.notes ? (
             <View style={styles.notesBox}>
               <Text numberOfLines={3} style={styles.notes}>
                 {item.notes}
               </Text>
             </View>
-          ) : null}
+          ) : null} */}
 
           <View style={styles.actionRow}>
             {action.variant === 'primary' ? (
@@ -805,58 +805,58 @@ export default function JobsScreen() {
               </Animated.View>
             </View>
           }
-        ListEmptyComponent={
-          loading ? (
-            <ActivityIndicator color={Brand.accent} style={styles.emptySpinner} />
-          ) : query ? (
-            <Animated.View entering={FadeIn.duration(220)} style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Icon color={Brand.accent} name="search" size={28} />
-              </View>
-              <Text style={styles.emptyTitle}>No matches</Text>
-              <Text style={styles.emptyText}>
-                No jobs found for &ldquo;{search.trim()}&rdquo;. Try a different name or address.
-              </Text>
-              <Pressable onPress={() => setSearch('')} style={styles.retry}>
-                <Text style={styles.retryText}>Clear search</Text>
-              </Pressable>
-            </Animated.View>
-          ) : (
-            <Animated.View entering={FadeIn.duration(220)} style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Icon color={Brand.accent} name="clipboard-outline" size={28} />
-              </View>
-              <Text style={styles.emptyTitle}>
-                {filter === 'inProgress'
-                  ? 'No jobs in progress'
-                  : filter === 'completed'
-                    ? 'No completed jobs'
-                    : 'No jobs yet'}
-              </Text>
-              <Text style={styles.emptyText}>
-                {filter === 'inProgress'
-                  ? 'Jobs you start will show up here.'
-                  : filter === 'completed'
-                    ? 'Jobs you finish will show up here.'
-                    : 'When a job is assigned to you, it will appear here.'}
-              </Text>
-              <Pressable onPress={() => void loadJobs('full')} style={styles.retry}>
-                <Text style={styles.retryText}>Refresh</Text>
-              </Pressable>
-            </Animated.View>
-          )
-        }
-        renderItem={({ item, index }) => {
-          const openJob = () => {
-            void openJobForItem(item);
-          };
+          ListEmptyComponent={
+            loading ? (
+              <ActivityIndicator color={Brand.accent} style={styles.emptySpinner} />
+            ) : query ? (
+              <Animated.View entering={FadeIn.duration(220)} style={styles.empty}>
+                <View style={styles.emptyIcon}>
+                  <Icon color={Brand.accent} name="search" size={28} />
+                </View>
+                <Text style={styles.emptyTitle}>No matches</Text>
+                <Text style={styles.emptyText}>
+                  No jobs found for &ldquo;{search.trim()}&rdquo;. Try a different name or address.
+                </Text>
+                <Pressable onPress={() => setSearch('')} style={styles.retry}>
+                  <Text style={styles.retryText}>Clear search</Text>
+                </Pressable>
+              </Animated.View>
+            ) : (
+              <Animated.View entering={FadeIn.duration(220)} style={styles.empty}>
+                <View style={styles.emptyIcon}>
+                  <Icon color={Brand.accent} name="clipboard-outline" size={28} />
+                </View>
+                <Text style={styles.emptyTitle}>
+                  {filter === 'inProgress'
+                    ? 'No jobs in progress'
+                    : filter === 'completed'
+                      ? 'No completed jobs'
+                      : 'No jobs yet'}
+                </Text>
+                <Text style={styles.emptyText}>
+                  {filter === 'inProgress'
+                    ? 'Jobs you start will show up here.'
+                    : filter === 'completed'
+                      ? 'Jobs you finish will show up here.'
+                      : 'When a job is assigned to you, it will appear here.'}
+                </Text>
+                <Pressable onPress={() => void loadJobs('full')} style={styles.retry}>
+                  <Text style={styles.retryText}>Refresh</Text>
+                </Pressable>
+              </Animated.View>
+            )
+          }
+          renderItem={({ item, index }) => {
+            const openJob = () => {
+              void openJobForItem(item);
+            };
 
-          return viewMode === 'grid' ? (
-            <JobGridItem index={index} item={item} onOpen={openJob} />
-          ) : (
-            <JobListItem index={index} item={item} onOpen={openJob} />
-          );
-        }}
+            return viewMode === 'grid' ? (
+              <JobGridItem index={index} item={item} onOpen={openJob} />
+            ) : (
+              <JobListItem index={index} item={item} onOpen={openJob} />
+            );
+          }}
         />
       </View>
     </SafeAreaView>

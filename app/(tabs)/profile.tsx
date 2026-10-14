@@ -48,7 +48,14 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 
+import { requireOptionalNativeModule } from 'expo';
+
 import { ConnectionDot } from '@/components/connection-dot';
+import type {
+  ProfileToolModel,
+  ProfileToolPlacement,
+  ProfileTools3D as ProfileTools3DComponent,
+} from '@/components/profile-tools-3d';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
@@ -57,6 +64,15 @@ import { resolveApiUrl, updatePushPreferenceWithApi } from '@/lib/api';
 import { getStableDeviceId } from '@/lib/device-id';
 import { loadPushPrefs, savePushPrefs } from '@/lib/push-prefs';
 import { syncPushRegistration } from '@/lib/push-notifications';
+
+// expo-gl throws at import time when its native module is missing (e.g. an older
+// dev build), so only load the 3D tools when the module exists.
+const GL_AVAILABLE = Boolean(requireOptionalNativeModule('ExponentGLObjectManager'));
+/* eslint-disable @typescript-eslint/no-require-imports */
+const ProfileTools3D: typeof ProfileTools3DComponent | null = GL_AVAILABLE
+  ? require('@/components/profile-tools-3d').ProfileTools3D
+  : null;
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const HeroPrimary = Brand.accent;
 const HeroTextMuted = '#8FAEB8';
@@ -75,6 +91,8 @@ const DRIFT_MS = 9000;
 
 type FloatingTool = {
   Icon: LucideIcon;
+  /** 3D model drawn in place of the icon when expo-gl is available. */
+  model: ProfileToolModel;
   /** Which side of the avatar. Both sides use the same `spread`, so the layout mirrors. */
   side: 'left' | 'right';
   /** Horizontal distance of the tool's centre from the hero's centre line, in % of its width. */
@@ -95,34 +113,34 @@ type FloatingTool = {
 /** Global speed knob: < 1 is faster, > 1 is slower. Scales every tool's durationMs. */
 const FLOATING_DURATION_SCALE = 0.4;
 /** Global visibility knob: multiplies every tool's opacity. */
-const FLOATING_OPACITY_SCALE = 3.2;
+const FLOATING_OPACITY_SCALE = 2.4;
 
 // Seven tools per side, mirrored by `spread`, all inside the oval that starts below the top bar
 // and wraps the avatar + name. Kept clear: the avatar's pulse rings and the name/status block.
 // Sizes vary so the two sides read as balanced, not copy-pasted.
 const FLOATING_TOOLS: FloatingTool[] = [
   // Top band, just under the title bar (mirrored pairs + one centred under "Profile")
-  { Icon: Wind, side: 'left', spread: 41, top: 26, size: 22, opacity: 0.13, dx: 6, dy: 5, tilt: 8, durationMs: 14500 },
-  { Icon: Search, side: 'left', spread: 28, top: 18, size: 18, opacity: 0.15, dx: -5, dy: 5, tilt: -10, durationMs: 12000 },
-  { Icon: CloudLightning, side: 'left', spread: 0, top: 17, size: 20, opacity: 0.13, dx: 6, dy: 4, tilt: 6, durationMs: 15000 },
-  { Icon: Hammer, side: 'right', spread: 28, top: 18, size: 22, opacity: 0.13, dx: 5, dy: 5, tilt: 10, durationMs: 13500 },
-  { Icon: Ruler, side: 'right', spread: 41, top: 26, size: 18, opacity: 0.15, dx: -6, dy: 5, tilt: -8, durationMs: 12500 },
+  { Icon: Wind, model: 'wind', side: 'left', spread: 41, top: 26, size: 22, opacity: 0.13, dx: 6, dy: 5, tilt: 8, durationMs: 14500 },
+  { Icon: Search, model: 'search', side: 'left', spread: 28, top: 18, size: 18, opacity: 0.15, dx: -5, dy: 5, tilt: -10, durationMs: 12000 },
+  { Icon: CloudLightning, model: 'lightning', side: 'left', spread: 0, top: 17, size: 20, opacity: 0.13, dx: 6, dy: 4, tilt: 6, durationMs: 15000 },
+  { Icon: Hammer, model: 'hammer', side: 'right', spread: 28, top: 18, size: 22, opacity: 0.13, dx: 5, dy: 5, tilt: 10, durationMs: 13500 },
+  { Icon: Ruler, model: 'ruler', side: 'right', spread: 41, top: 26, size: 18, opacity: 0.15, dx: -6, dy: 5, tilt: -8, durationMs: 12500 },
   // Left side
-  { Icon: Ruler, side: 'left', spread: 18, top: 27, size: 18, opacity: 0.15, dx: 6, dy: 5, tilt: 10, durationMs: 12500 },
-  { Icon: Hammer, side: 'left', spread: 33, top: 38, size: 30, opacity: 0.13, dx: -6, dy: 6, tilt: -12, durationMs: 14000 },
-  { Icon: CloudHail, side: 'left', spread: 43, top: 50, size: 32, opacity: 0.11, dx: 6, dy: -6, tilt: 8, durationMs: 16000 },
-  { Icon: Drill, side: 'left', spread: 29, top: 52, size: 16, opacity: 0.16, dx: -5, dy: 6, tilt: -8, durationMs: 11500 },
-  { Icon: Wrench, side: 'left', spread: 40, top: 66, size: 20, opacity: 0.14, dx: 6, dy: -5, tilt: 12, durationMs: 13500 },
-  { Icon: Camera, side: 'left', spread: 25, top: 72, size: 18, opacity: 0.14, dx: -5, dy: -5, tilt: -10, durationMs: 13000 },
-  { Icon: PencilRuler, side: 'left', spread: 37, top: 80, size: 28, opacity: 0.12, dx: 5, dy: -5, tilt: 10, durationMs: 15000 },
+  { Icon: Ruler, model: 'ruler', side: 'left', spread: 18, top: 27, size: 18, opacity: 0.15, dx: 6, dy: 5, tilt: 10, durationMs: 12500 },
+  { Icon: Hammer, model: 'hammer', side: 'left', spread: 33, top: 38, size: 30, opacity: 0.13, dx: -6, dy: 6, tilt: -12, durationMs: 14000 },
+  { Icon: CloudHail, model: 'cloudHail', side: 'left', spread: 43, top: 50, size: 32, opacity: 0.11, dx: 6, dy: -6, tilt: 8, durationMs: 16000 },
+  { Icon: Drill, model: 'drill', side: 'left', spread: 29, top: 52, size: 16, opacity: 0.16, dx: -5, dy: 6, tilt: -8, durationMs: 11500 },
+  { Icon: Wrench, model: 'wrench', side: 'left', spread: 40, top: 66, size: 20, opacity: 0.14, dx: 6, dy: -5, tilt: 12, durationMs: 13500 },
+  { Icon: Camera, model: 'camera', side: 'left', spread: 25, top: 72, size: 18, opacity: 0.14, dx: -5, dy: -5, tilt: -10, durationMs: 13000 },
+  { Icon: PencilRuler, model: 'pencil', side: 'left', spread: 37, top: 80, size: 28, opacity: 0.12, dx: 5, dy: -5, tilt: 10, durationMs: 15000 },
   // Right side
-  { Icon: Scan, side: 'right', spread: 18, top: 27, size: 18, opacity: 0.15, dx: -6, dy: 5, tilt: -10, durationMs: 11000 },
-  { Icon: ClipboardList, side: 'right', spread: 33, top: 36, size: 28, opacity: 0.12, dx: 6, dy: 6, tilt: 12, durationMs: 15500 },
-  { Icon: HardHat, side: 'right', spread: 43, top: 50, size: 28, opacity: 0.14, dx: -6, dy: -6, tilt: -8, durationMs: 13000 },
-  { Icon: Compass, side: 'right', spread: 29, top: 52, size: 18, opacity: 0.15, dx: 5, dy: 6, tilt: 10, durationMs: 12000 },
-  { Icon: Flashlight, side: 'right', spread: 40, top: 66, size: 30, opacity: 0.11, dx: -6, dy: -5, tilt: 14, durationMs: 16500 },
-  { Icon: ClipboardCheck, side: 'right', spread: 25, top: 72, size: 18, opacity: 0.14, dx: 5, dy: -5, tilt: -12, durationMs: 14500 },
-  { Icon: Thermometer, side: 'right', spread: 37, top: 80, size: 20, opacity: 0.15, dx: -5, dy: -5, tilt: 8, durationMs: 12000 },
+  { Icon: Scan, model: 'search', side: 'right', spread: 18, top: 27, size: 18, opacity: 0.15, dx: -6, dy: 5, tilt: -10, durationMs: 11000 },
+  { Icon: ClipboardList, model: 'clipboard', side: 'right', spread: 33, top: 36, size: 28, opacity: 0.12, dx: 6, dy: 6, tilt: 12, durationMs: 15500 },
+  { Icon: HardHat, model: 'hardHat', side: 'right', spread: 43, top: 50, size: 28, opacity: 0.14, dx: -6, dy: -6, tilt: -8, durationMs: 13000 },
+  { Icon: Compass, model: 'compass', side: 'right', spread: 29, top: 52, size: 18, opacity: 0.15, dx: 5, dy: 6, tilt: 10, durationMs: 12000 },
+  { Icon: Flashlight, model: 'flashlight', side: 'right', spread: 40, top: 66, size: 30, opacity: 0.11, dx: -6, dy: -5, tilt: 14, durationMs: 16500 },
+  { Icon: ClipboardCheck, model: 'clipboard', side: 'right', spread: 25, top: 72, size: 18, opacity: 0.14, dx: 5, dy: -5, tilt: -12, durationMs: 14500 },
+  { Icon: Thermometer, model: 'thermometer', side: 'right', spread: 37, top: 80, size: 20, opacity: 0.15, dx: -5, dy: -5, tilt: 8, durationMs: 12000 },
 ];
 
 /** Centre point of a tool inside the hero, in % of width / height. */
@@ -198,6 +216,18 @@ function FloatingToolIcon({
     </Animated.View>
   );
 }
+
+/** The same layout and drift for the 3D tools. */
+const TOOL_PLACEMENTS: ProfileToolPlacement[] = FLOATING_TOOLS.map((tool) => ({
+  model: tool.model,
+  x: tool.side === 'right' ? 50 + tool.spread : 50 - tool.spread,
+  y: tool.top,
+  size: tool.size,
+  dx: tool.dx,
+  dy: tool.dy,
+  tilt: tool.tilt,
+  durationMs: tool.durationMs,
+}));
 
 function FloatingTools({ active }: { active: boolean }) {
   return (
@@ -520,6 +550,9 @@ export default function ProfileScreen() {
   const [darkMode, setDarkMode] = useState(false);
   const [screenFocused, setScreenFocused] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [heroSize, setHeroSize] = useState<{ width: number; height: number } | null>(null);
+  const [tools3dFailed, setTools3dFailed] = useState(false);
+  const show3dTools = Boolean(ProfileTools3D) && !tools3dFailed;
 
   useEffect(() => {
     void loadPushPrefs().then((prefs) => setPushNotifications(prefs.enabled));
@@ -602,12 +635,33 @@ export default function ProfileScreen() {
       <StatusBar style="light" />
       <SafeTopGuard color={HeroPrimary} />
 
-      <View style={[styles.heroSection, { paddingTop: 8 }]}>
+      <View
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          // Measured once: the GL scene is laid out against this size.
+          if (!heroSize) setHeroSize({ width, height });
+        }}
+        style={[styles.heroSection, { paddingTop: 8 }]}
+      >
+        {show3dTools && ProfileTools3D ? (
+          heroSize ? (
+            <ProfileTools3D
+              active={screenFocused}
+              background={HeroPrimary}
+              height={heroSize.height}
+              onError={() => setTools3dFailed(true)}
+              reduceMotion={reduceMotion}
+              tools={TOOL_PLACEMENTS}
+              width={heroSize.width}
+            />
+          ) : null
+        ) : (
+          <FloatingTools active={motionActive} />
+        )}
         <AmbientGlow active={motionActive} />
-        <FloatingTools active={motionActive} />
 
         <View style={styles.topBar}>
-          <Pressable
+          {/* <Pressable
             accessibilityRole="button"
             accessibilityLabel="Edit profile"
             hitSlop={8}
@@ -615,9 +669,9 @@ export default function ProfileScreen() {
             style={({ pressed }) => [styles.topBarBtn, pressed && styles.topBarBtnPressed]}
           >
             <Icon color="#FFFFFF" name="pencil" size={18} />
-          </Pressable>
+          </Pressable> */}
           <Text style={styles.topBarTitle}>Profile</Text>
-          <Pressable
+          {/* <Pressable
             accessibilityRole="button"
             accessibilityLabel="Log out"
             hitSlop={8}
@@ -629,7 +683,7 @@ export default function ProfileScreen() {
             ]}
           >
             <Icon color="#FFFFFF" name="log-out-outline" size={18} />
-          </Pressable>
+          </Pressable> */}
         </View>
 
         <View style={styles.avatarBlock}>
@@ -924,12 +978,15 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.96 }],
   },
   topBarTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+  flex:1,
+  color: '#FFFFFF',
+  fontSize: 17,
+  marginBottom: 15,
+  fontWeight: '700',
+  textAlign: 'center',
+  textShadowColor: 'rgba(0,0,0,0.35)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 3,
   },
   avatarBlock: {
     alignItems: 'center',
