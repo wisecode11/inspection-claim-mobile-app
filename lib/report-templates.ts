@@ -1,5 +1,7 @@
 /** Evidence Package narrative — admin Report language when available, else built-in defaults. */
 
+import type { InspectorCertification } from '@/lib/api';
+
 export type ReportLanguageCitation = {
   id: string;
   state: string;
@@ -212,13 +214,59 @@ export function disclaimerHtml(language?: ReportLanguagePackage | null) {
   `;
 }
 
-export function inspectorDeclarationHtml(inspector: string) {
+export type InspectorCredentials = {
+  name: string;
+  companyName?: string;
+  licenseNumber?: string;
+  certifications?: InspectorCertification[];
+  /** Certifications that expired before this date are left out. */
+  asOf?: Date;
+};
+
+/** Certifications still valid on `asOf` (no expiry date counts as valid). */
+export function currentCertifications(
+  certifications: InspectorCertification[] | undefined,
+  asOf: Date = new Date(),
+) {
+  return (certifications || []).filter((cert) => {
+    if (!cert?.name?.trim()) return false;
+    if (!cert.expiresAt) return true;
+    const expires = new Date(cert.expiresAt);
+    return Number.isNaN(expires.getTime()) || expires >= asOf;
+  });
+}
+
+function certificationLabel(cert: InspectorCertification) {
+  const parts = [cert.name.trim()];
+  if (cert.issuer?.trim()) parts.push(cert.issuer.trim());
+  let label = parts.join(', ');
+  if (cert.number?.trim()) label += ` (No. ${cert.number.trim()})`;
+  return label;
+}
+
+/**
+ * Declaration closing the Evidence Package. Credentials come only from the inspector's
+ * profile — nothing is claimed that the company has not recorded.
+ */
+export function inspectorDeclarationHtml(credentials: InspectorCredentials) {
+  const certs = currentCertifications(credentials.certifications, credentials.asOf);
+  const license = credentials.licenseNumber?.trim();
+
+  const credentialSentence =
+    certs.length > 0
+      ? ` The undersigned inspector holds the following certification${certs.length === 1 ? '' : 's'}: ${certs
+          .map((cert) => `<strong>${escapeHtml(certificationLabel(cert))}</strong>`)
+          .join('; ')}.`
+      : '';
+
   return `
     <p class="narrative">
       I declare that the findings in this Evidence Package are based on physical evidence observed during the
-      inspection of the subject property. The undersigned inspector is <strong>HAAG Certified</strong>.
+      inspection of the subject property.${credentialSentence}
       This report supports claim evaluation and does not constitute a coverage decision.
     </p>
-    <p class="narrative"><strong>Inspector:</strong> ${inspector}</p>
+    <p class="narrative"><strong>Inspector:</strong> ${escapeHtml(credentials.name)}</p>
+    ${credentials.companyName ? `<p class="narrative"><strong>Company:</strong> ${escapeHtml(credentials.companyName)}</p>` : ''}
+    ${license ? `<p class="narrative"><strong>License No.:</strong> ${escapeHtml(license)}</p>` : ''}
   `;
 }

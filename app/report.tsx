@@ -14,7 +14,10 @@ import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
 import {
+  type AuthCompany,
+  type AuthUser,
   fetchJob,
+  fetchMySession,
   fetchPropertyMapPair,
   fetchSwathBaseMap,
   fetchReportLanguage,
@@ -23,24 +26,43 @@ import {
   sendEvidenceToAdmin,
   verifyWeatherForJob,
 } from '@/lib/api';
+import { companyDisplayName } from '@/lib/auth-storage';
+import type { InspectionData } from '@/lib/inspection-types';
 import { loadLastPdf, saveLastPdf } from '@/lib/last-pdf';
 import type { ReportLanguagePackage } from '@/lib/report-templates';
 import {
   createInspectionPdf,
+  pdfIsMissingPhotos,
   downloadInspectionPdf,
   shareInspectionPdf,
   viewInspectionPdf,
 } from '@/utils/create-inspection-pdf';
 
+/** Inspector contact, credentials and company name for the PDF. */
+function inspectorPdfDetails(
+  user: AuthUser | null,
+  company: AuthCompany | null,
+): Partial<InspectionData> {
+  return {
+    inspectorEmail: user?.email || '',
+    inspectorPhone: user?.profile?.phone || '',
+    inspectorLicenseNumber: user?.profile?.licenseNumber || '',
+    inspectorCertifications: user?.profile?.certifications || [],
+    companyName: companyDisplayName(company),
+  };
+}
+
 export default function ReportScreen() {
   const router = useRouter();
-  const { token } = useAuth();
+  const { token, user, company, updateUser } = useAuth();
   const { data, update, clearInspectionDraft } = useInspection();
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(true);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  /** Set when the PDF is missing photos or is an older copy; shown and confirmed before sending. */
+  const [pdfWarning, setPdfWarning] = useState<string | null>(null);
 
   const includedPhotos = data.photos.filter((photo) => photo.includeInReport !== false).length;
 
@@ -77,6 +99,21 @@ export default function ReportScreen() {
           }
         }
 
+        // Inspector + company blocks come from the signed-in profile, never the job's customer.
+        let profileUser = user;
+        let profileCompany = company;
+        if (token) {
+          const fresh = await fetchMySession(token).catch(() => null);
+          if (fresh) {
+            profileUser = fresh.user;
+            profileCompany = fresh.company ?? company;
+            void updateUser(fresh.user).catch(() => undefined);
+          }
+        }
+        const inspectorDetails = inspectorPdfDetails(profileUser, profileCompany);
+        snapshot = { ...snapshot, ...inspectorDetails };
+        update(inspectorDetails);
+
         let language: ReportLanguagePackage | null = null;
         let maps: { roadmap: string | null; satellite: string | null } | null = null;
         if (token) {
@@ -99,16 +136,35 @@ export default function ReportScreen() {
         const swathBaseMap =
           token && swathBounds ? await fetchSwathBaseMap(token, swathBounds).catch(() => null) : null;
 
-        const uri = await createInspectionPdf(snapshot, language, maps, swathBaseMap);
+        const result = await createInspectionPdf(snapshot, language, maps, swathBaseMap);
         if (!active) return;
-        setPdfUri(uri);
+        setPdfUri(result.uri);
+        if (pdfIsMissingPhotos(result)) {
+          const warning =
+            result.quality === 'none'
+              ? `The PDF could not include photos. All ${result.totalPhotos} photos are still uploaded with the job, but the PDF only lists them.`
+              : `${result.totalPhotos - result.embeddedPhotos} of ${result.totalPhotos} photos could not be added to the PDF. They are marked in the PDF and still uploaded with the job.`;
+          setPdfWarning(warning);
+          Alert.alert(
+            'Photos missing from the PDF',
+            `${warning}\n\nTry removing very large or damaged photos in the draft, then rebuild.`
+          );
+        }
         if (data.jobId) {
-          await saveLastPdf(data.jobId, uri);
+          await saveLastPdf(data.jobId, result.uri);
         }
       } catch {
         const existing = data.jobId ? await loadLastPdf(data.jobId) : null;
         if (active && existing) {
+          // Not silent: this older PDF may not include the latest edits or photos.
           setPdfUri(existing);
+          setPdfWarning(
+            'This is the last PDF built for this job. A new one could not be created, so recent edits or photos may be missing.'
+          );
+          Alert.alert(
+            'Showing an older PDF',
+            'A new PDF could not be created. The last PDF for this job is shown instead and may be out of date.'
+          );
         } else if (active) {
           Alert.alert('PDF error', 'Could not generate the Evidence Package PDF.');
         }
@@ -150,8 +206,17 @@ export default function ReportScreen() {
     }
   };
 
-  const sendToAdmin = async () => {
+  const sendToAdmin = async (confirmed = false) => {
     if (!pdfUri || !token || sending || sent) return;
+
+    // An incomplete or out-of-date PDF is only sent after the inspector explicitly agrees.
+    if (pdfWarning && !confirmed) {
+      Alert.alert('Send an incomplete PDF?', pdfWarning, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Send anyway', style: 'destructive', onPress: () => void sendToAdmin(true) },
+      ]);
+      return;
+    }
 
     try {
       setSending(true);
@@ -220,6 +285,12 @@ export default function ReportScreen() {
                 ? `${includedPhotos} photos included · draft applied`
                 : 'Preparing PDF...'}
             </Text>
+            {pdfWarning ? (
+              <View style={styles.warning} accessibilityRole="alert">
+                <Text style={styles.warningTitle}>Incomplete PDF</Text>
+                <Text style={styles.warningText}>{pdfWarning}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.cardActions}>
@@ -343,6 +414,16 @@ const styles = StyleSheet.create({
   customer: { color: '#133A42', fontSize: 20, fontWeight: '800', marginTop: 10 },
   address: { color: '#526A74', lineHeight: 20, marginTop: 4 },
   meta: { color: '#84949C', fontSize: 12, marginTop: 14 },
+  warning: {
+    backgroundColor: '#FFF4F4',
+    borderColor: '#E7B8B8',
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 10,
+  },
+  warningTitle: { color: '#9B1C1C', fontSize: 12, fontWeight: '800', marginBottom: 2 },
+  warningText: { color: '#7A1F1F', fontSize: 12, lineHeight: 17 },
   cardActions: {
     borderTopColor: '#E8EEF0',
     borderTopWidth: StyleSheet.hairlineWidth,

@@ -294,7 +294,7 @@ export default function SetupScreen() {
             <InfoRow label="INSPECTOR" value={data.inspectorName} last />
           </SectionBlock>
 
-          <SectionBlock icon="id-card-outline" title="CONTACT">
+          <SectionBlock icon="id-card-outline" title="HOMEOWNER CONTACT">
             <InfoRow label="PHONE" value={data.phone} />
             <InfoRow label="EMAIL" value={data.email} last />
           </SectionBlock>
