@@ -152,6 +152,30 @@ export const REPORT_CSS = `
       background: #f3f3f3;
       margin: 0;
     }
+    /* A photo that could not be embedded: shown, never silently dropped. */
+    .photo-missing + .photo-missing {
+      margin-top: 10px;
+    }
+    .photo-missing-box {
+      box-sizing: border-box;
+      width: 82%;
+      padding: 18px 12px;
+      border: 1px dashed #999;
+      background: #fafafa;
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 10.5px;
+      color: #555;
+      text-align: center;
+    }
+    .evidence-notice {
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      border: 1px solid #c77;
+      background: #fff4f4;
+      font-family: Helvetica, Arial, sans-serif;
+      font-size: 11px;
+      color: #7a1f1f;
+    }
     .caption {
       font-family: Helvetica, Arial, sans-serif;
       font-size: 10.5px;

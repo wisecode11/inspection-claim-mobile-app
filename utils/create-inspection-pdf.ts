@@ -24,6 +24,7 @@ import {
   inspectorDeclarationHtml,
   investigationProcessHtml,
   photographicEvidenceIntroHtml,
+  plainTextToNarrativeHtml,
   summaryOfFindingsHtml,
   type ReportLanguagePackage,
 } from '@/lib/report-templates';
@@ -46,6 +47,12 @@ function clientSectionTitle(sectionId: EvidenceSectionId) {
   return CLIENT_SECTION_TITLES[sectionId] || sectionTitle(sectionId);
 }
 
+/** Inspection date for checking certification expiry; today when the label can't be parsed. */
+function inspectionDay(label: string) {
+  const parsed = label ? new Date(label) : null;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date();
+}
+
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
   return new Promise<T>((resolve, reject) => {
@@ -63,13 +70,28 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
   });
 }
 
-async function photoToDataUri(uri: string, opts?: { wider?: boolean }) {
-  const targetWidth = opts?.wider ? 1200 : 720;
+/**
+ * Photo resolution tiers. Every included photo is embedded; when the PDF is too large to
+ * print, it is retried at a lower tier rather than dropping photos.
+ */
+type PhotoQuality = 'standard' | 'reduced' | 'minimal';
+
+const PHOTO_TIERS: Record<PhotoQuality, { width: number; compress: number; annotatedWidth: number; annotatedCompress: number }> = {
+  standard: { width: 720, compress: 0.62, annotatedWidth: 1200, annotatedCompress: 0.72 },
+  reduced: { width: 560, compress: 0.5, annotatedWidth: 900, annotatedCompress: 0.6 },
+  minimal: { width: 420, compress: 0.42, annotatedWidth: 640, annotatedCompress: 0.5 },
+};
+
+/** Large packages start at a lighter tier so the print step is less likely to fail. */
+const LARGE_PACKAGE_PHOTOS = 80;
+
+async function photoToDataUri(uri: string, quality: PhotoQuality, annotated: boolean) {
+  const tier = PHOTO_TIERS[quality];
   const resized = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: targetWidth } }],
+    [{ resize: { width: annotated ? tier.annotatedWidth : tier.width } }],
     {
-      compress: opts?.wider ? 0.72 : 0.62,
+      compress: annotated ? tier.annotatedCompress : tier.compress,
       format: ImageManipulator.SaveFormat.JPEG,
       base64: true,
     }
@@ -78,21 +100,22 @@ async function photoToDataUri(uri: string, opts?: { wider?: boolean }) {
   return `data:image/jpeg;base64,${resized.base64}`;
 }
 
-async function embedPhotoMap(photos: PhotoItem[]) {
+/** Embeds every photo (no cap). Photos that fail to convert are reported, not hidden. */
+async function embedPhotoMap(photos: PhotoItem[], quality: PhotoQuality) {
   const map = new Map<string, string>();
-  for (const photo of photos.slice(0, 80)) {
+  for (const photo of photos) {
     try {
       const annotated =
         /annotated/i.test(photo.label) ||
         (Array.isArray(photo.annotations) && photo.annotations.length > 0);
       const dataUri = await withTimeout(
-        photoToDataUri(photo.uri, { wider: annotated }),
+        photoToDataUri(photo.uri, quality, annotated),
         10000,
         'Photo convert'
       );
       if (dataUri) map.set(photo.id, dataUri);
     } catch {
-      // Skip failed photos.
+      // Rendered as a visible "not embedded" placeholder in the PDF.
     }
   }
   return map;
@@ -117,7 +140,14 @@ function renderPhotos(photos: PhotoItem[], embedded: Map<string, string>) {
   return photos
     .map((photo) => {
       const src = embedded.get(photo.id);
-      if (!src) return '';
+      if (!src) {
+        // Never drop evidence silently: show where the photo belongs and that it exists.
+        return `
+        <div class="photo-block photo-missing">
+          <div class="photo-missing-box">Photograph not embedded in this PDF — the original is retained in the job file.</div>
+          <div class="caption">${escapeHtml(photoCaption(photo) || 'Photographic evidence')}</div>
+        </div>`;
+      }
       const annotated =
         /annotated/i.test(photo.label) ||
         (Array.isArray(photo.annotations) && photo.annotations.length > 0);
@@ -262,7 +292,9 @@ function buildReportHtml(
   embedded: Map<string, string>,
   language?: ReportLanguagePackage | null,
   maps?: { roadmap: string | null; satellite: string | null } | null,
-  swathBaseMap: SwathBaseMap | null = null
+  swathBaseMap: SwathBaseMap | null = null,
+  /** Shown at the top of the photographic evidence section when photos are missing. */
+  photoNotice = ''
 ) {
   const bySection = new Map<string, PhotoItem[]>();
   const reportPhotos = data.photos.filter((photo) => photo.includeInReport !== false);
@@ -280,7 +312,11 @@ function buildReportHtml(
   const coverSrc = cover ? embedded.get(cover.id) : null;
 
   const inspector = data.inspectorName || 'Inspector';
+  const companyName = data.companyName?.trim() || '';
+  const licenseNumber = data.inspectorLicenseNumber?.trim() || '';
   const homeowner = data.homeownerName || data.customer || 'Property Owner';
+  // The inspector's own findings, written on the Report draft screen.
+  const inspectorNarrative = plainTextToNarrativeHtml(data.reportNarrative || '');
   const roofAge = data.estimatedRoofAge || 'unknown age';
   const inspectionDate = data.date || '—';
   const dateOfLoss = data.dateOfLoss ? String(data.dateOfLoss).slice(0, 10) : '—';
@@ -313,8 +349,10 @@ function buildReportHtml(
     <div class="block">
       <h2>Assigned Inspector</h2>
       ${infoRow('Inspector', inspector)}
-      ${infoRow('Email', data.email)}
-      ${infoRow('Phone', data.phone)}
+      ${infoRow('Company', companyName)}
+      ${infoRow('Email', data.inspectorEmail || '')}
+      ${infoRow('Phone', data.inspectorPhone || '')}
+      ${licenseNumber ? infoRow('License No.', licenseNumber) : ''}
     </div>
 
     <div class="block">
@@ -335,6 +373,15 @@ function buildReportHtml(
       ${summaryOfFindingsHtml(language)}
     </div>
 
+    ${
+      inspectorNarrative
+        ? `<div class="block">
+      <h2>Inspector’s Findings and Conclusions</h2>
+      ${inspectorNarrative}
+    </div>`
+        : ''
+    }
+
     <div class="block">
       <h2>Investigation Process</h2>
       ${investigationProcessHtml(language)}
@@ -349,6 +396,7 @@ function buildReportHtml(
 
     <div class="section page-break">
       <h2>Photographic Evidence and Supporting Documentation</h2>
+      ${photoNotice ? `<p class="evidence-notice">${escapeHtml(photoNotice)}</p>` : ''}
       ${photographicEvidenceIntroHtml()}
       <h3>Index of Documented Findings</h3>
       ${renderFindingsIndex(bySection)}
@@ -372,11 +420,17 @@ function buildReportHtml(
 
     <div class="section page-break">
       <h2>Inspector’s Declaration</h2>
-      ${inspectorDeclarationHtml(escapeHtml(inspector))}
+      ${inspectorDeclarationHtml({
+        name: inspector,
+        companyName,
+        licenseNumber,
+        certifications: data.inspectorCertifications,
+        asOf: inspectionDay(data.date),
+      })}
     </div>
 
     <div class="footer">
-      ClaimCapture Evidence Package · Generated for claim documentation ·
+      ${companyName ? `${escapeHtml(companyName)} · ` : ''}ClaimCapture Evidence Package · Generated for claim documentation ·
       ${escapeHtml(homeowner)} · ${escapeHtml(data.address)}
     </div>
   </div>
@@ -389,40 +443,70 @@ function reportFileName(customer: string) {
   return `ClaimCapture_${safeName}_${Date.now()}.pdf`;
 }
 
+export type InspectionPdfResult = {
+  uri: string;
+  /** Photos marked "include in report". */
+  totalPhotos: number;
+  /** Photos actually embedded in the PDF. */
+  embeddedPhotos: number;
+  /** Resolution used, or 'none' when the PDF could only be printed without photos. */
+  quality: PhotoQuality | 'none';
+};
+
+/** True when the PDF is missing any photo the inspector included. */
+export function pdfIsMissingPhotos(result: Pick<InspectionPdfResult, 'totalPhotos' | 'embeddedPhotos'>) {
+  return result.embeddedPhotos < result.totalPhotos;
+}
+
+async function printToDocuments(html: string, timeoutMs: number, label: string, data: InspectionData) {
+  const file = await withTimeout(Print.printToFileAsync({ html, base64: false }), timeoutMs, label);
+  const destination = `${FileSystem.documentDirectory}${reportFileName(
+    data.homeownerName || data.customer
+  )}`;
+  await FileSystem.copyAsync({ from: file.uri, to: destination });
+  return destination;
+}
+
+/**
+ * Builds the Evidence Package. Every included photo is embedded (no cap). If printing
+ * fails, it retries at lower photo resolutions; only as a last resort is a photo-less PDF
+ * produced, and then the PDF says so and the result reports it — nothing is dropped silently.
+ */
 export async function createInspectionPdf(
   data: InspectionData,
   language?: ReportLanguagePackage | null,
   maps?: { roadmap: string | null; satellite: string | null } | null,
   swathBaseMap: SwathBaseMap | null = null
-) {
+): Promise<InspectionPdfResult> {
   const reportPhotos = data.photos.filter((photo) => photo.includeInReport !== false);
-  const embedded = await embedPhotoMap(reportPhotos);
-  const html = buildReportHtml(data, embedded, language, maps, swathBaseMap);
+  const totalPhotos = reportPhotos.length;
+  const tiers: PhotoQuality[] =
+    totalPhotos > LARGE_PACKAGE_PHOTOS ? ['reduced', 'minimal'] : ['standard', 'reduced', 'minimal'];
 
-  try {
-    const file = await withTimeout(
-      Print.printToFileAsync({ html, base64: false }),
-      45000,
-      'PDF create'
-    );
-    const destination = `${FileSystem.documentDirectory}${reportFileName(
-      data.homeownerName || data.customer
-    )}`;
-    await FileSystem.copyAsync({ from: file.uri, to: destination });
-    return destination;
-  } catch {
-    const fallbackHtml = buildReportHtml(data, new Map(), language, maps, swathBaseMap);
-    const file = await withTimeout(
-      Print.printToFileAsync({ html: fallbackHtml, base64: false }),
-      20000,
-      'PDF fallback'
-    );
-    const destination = `${FileSystem.documentDirectory}${reportFileName(
-      data.homeownerName || data.customer
-    )}`;
-    await FileSystem.copyAsync({ from: file.uri, to: destination });
-    return destination;
+  for (const quality of tiers) {
+    try {
+      const embedded = await embedPhotoMap(reportPhotos, quality);
+      const missing = totalPhotos - embedded.size;
+      const notice =
+        missing > 0
+          ? `${missing} of ${totalPhotos} photograph${totalPhotos === 1 ? '' : 's'} could not be embedded in this PDF. They are marked below and the originals are retained in the job file.`
+          : '';
+      const html = buildReportHtml(data, embedded, language, maps, swathBaseMap, notice);
+      const uri = await printToDocuments(html, 60000, 'PDF create', data);
+      return { uri, totalPhotos, embeddedPhotos: embedded.size, quality };
+    } catch {
+      // Too large or timed out: try the next, lighter tier.
+    }
   }
+
+  // Last resort. The PDF itself states that photos are omitted, and the caller must warn.
+  const notice =
+    totalPhotos > 0
+      ? `Photographs could not be embedded in this PDF. ${totalPhotos} photograph${totalPhotos === 1 ? ' was' : 's were'} captured and ${totalPhotos === 1 ? 'is' : 'are'} retained in the job file; each is listed below.`
+      : '';
+  const fallbackHtml = buildReportHtml(data, new Map(), language, maps, swathBaseMap, notice);
+  const uri = await printToDocuments(fallbackHtml, 30000, 'PDF fallback', data);
+  return { uri, totalPhotos, embeddedPhotos: 0, quality: 'none' };
 }
 
 export async function viewInspectionPdf(uri: string) {

@@ -9,12 +9,16 @@ import {
   View,
 } from 'react-native';
 
+import { ConfirmModal } from '@/components/confirm-modal';
 import { Screen } from '@/components/inspection-ui';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useInspection } from '@/context/inspection-context';
 import {
+  type AuthCompany,
+  type AuthUser,
   fetchJob,
+  fetchMySession,
   fetchPropertyMapPair,
   fetchSwathBaseMap,
   fetchReportLanguage,
@@ -23,24 +27,62 @@ import {
   sendEvidenceToAdmin,
   verifyWeatherForJob,
 } from '@/lib/api';
+import { companyDisplayName } from '@/lib/auth-storage';
+import type { InspectionData } from '@/lib/inspection-types';
+import { opensStatusScreen, reviewStateForJob } from '@/lib/job-review';
 import { loadLastPdf, saveLastPdf } from '@/lib/last-pdf';
 import type { ReportLanguagePackage } from '@/lib/report-templates';
 import {
   createInspectionPdf,
+  pdfIsMissingPhotos,
   downloadInspectionPdf,
   shareInspectionPdf,
   viewInspectionPdf,
 } from '@/utils/create-inspection-pdf';
 
+/** Inspector contact, credentials and company name for the PDF. */
+function inspectorPdfDetails(
+  user: AuthUser | null,
+  company: AuthCompany | null,
+): Partial<InspectionData> {
+  return {
+    inspectorEmail: user?.email || '',
+    inspectorPhone: user?.profile?.phone || '',
+    inspectorLicenseNumber: user?.profile?.licenseNumber || '',
+    inspectorCertifications: user?.profile?.certifications || [],
+    companyName: companyDisplayName(company),
+  };
+}
+
+/** Offline fallback: job statuses that mean the package is already with the admin. */
+function lockForStatus(jobStatus: string): 'pending' | 'approved' | null {
+  const key = (jobStatus || '').toLowerCase();
+  if (key === 'completed') return 'approved';
+  return opensStatusScreen(key) ? 'pending' : null;
+}
+
 export default function ReportScreen() {
   const router = useRouter();
-  const { token } = useAuth();
+  const { token, user, company, updateUser } = useAuth();
   const { data, update, clearInspectionDraft } = useInspection();
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(true);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  /** Set when the PDF is missing photos or is an older copy; shown and confirmed before sending. */
+  const [pdfWarning, setPdfWarning] = useState<string | null>(null);
+  /**
+   * Why sending is not allowed right now: the package is already with the admin ('pending')
+   * or approved. Null = first send, or a resend after the admin rejected / requested changes.
+   * Seeded from the local draft, then refreshed from the server job when online.
+   */
+  const [sendLock, setSendLock] = useState<'pending' | 'approved' | null>(() =>
+    data.review ? null : lockForStatus(data.jobStatus),
+  );
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const resend = Boolean(data.review);
 
   const includedPhotos = data.photos.filter((photo) => photo.includeInReport !== false).length;
 
@@ -54,6 +96,12 @@ export default function ReportScreen() {
         if (token && data.jobId) {
           try {
             const job = await fetchJob(token, data.jobId);
+            // Server truth: already with the admin / approved → locked; rejected or changes
+            // requested → resend allowed.
+            const review = reviewStateForJob(job);
+            if (active) {
+              setSendLock(review === 'pending' ? 'pending' : review === 'approved' ? 'approved' : null);
+            }
             const weather =
               (await fetchWeatherVerification(token, data.jobId).catch(() => null)) ||
               (await verifyWeatherForJob(token, data.jobId).catch(() => null));
@@ -77,6 +125,21 @@ export default function ReportScreen() {
           }
         }
 
+        // Inspector + company blocks come from the signed-in profile, never the job's customer.
+        let profileUser = user;
+        let profileCompany = company;
+        if (token) {
+          const fresh = await fetchMySession(token).catch(() => null);
+          if (fresh) {
+            profileUser = fresh.user;
+            profileCompany = fresh.company ?? company;
+            void updateUser(fresh.user).catch(() => undefined);
+          }
+        }
+        const inspectorDetails = inspectorPdfDetails(profileUser, profileCompany);
+        snapshot = { ...snapshot, ...inspectorDetails };
+        update(inspectorDetails);
+
         let language: ReportLanguagePackage | null = null;
         let maps: { roadmap: string | null; satellite: string | null } | null = null;
         if (token) {
@@ -99,16 +162,35 @@ export default function ReportScreen() {
         const swathBaseMap =
           token && swathBounds ? await fetchSwathBaseMap(token, swathBounds).catch(() => null) : null;
 
-        const uri = await createInspectionPdf(snapshot, language, maps, swathBaseMap);
+        const result = await createInspectionPdf(snapshot, language, maps, swathBaseMap);
         if (!active) return;
-        setPdfUri(uri);
+        setPdfUri(result.uri);
+        if (pdfIsMissingPhotos(result)) {
+          const warning =
+            result.quality === 'none'
+              ? `The PDF could not include photos. All ${result.totalPhotos} photos are still uploaded with the job, but the PDF only lists them.`
+              : `${result.totalPhotos - result.embeddedPhotos} of ${result.totalPhotos} photos could not be added to the PDF. They are marked in the PDF and still uploaded with the job.`;
+          setPdfWarning(warning);
+          Alert.alert(
+            'Photos missing from the PDF',
+            `${warning}\n\nTry removing very large or damaged photos in the draft, then rebuild.`
+          );
+        }
         if (data.jobId) {
-          await saveLastPdf(data.jobId, uri);
+          await saveLastPdf(data.jobId, result.uri);
         }
       } catch {
         const existing = data.jobId ? await loadLastPdf(data.jobId) : null;
         if (active && existing) {
+          // Not silent: this older PDF may not include the latest edits or photos.
           setPdfUri(existing);
+          setPdfWarning(
+            'This is the last PDF built for this job. A new one could not be created, so recent edits or photos may be missing.'
+          );
+          Alert.alert(
+            'Showing an older PDF',
+            'A new PDF could not be created. The last PDF for this job is shown instead and may be out of date.'
+          );
         } else if (active) {
           Alert.alert('PDF error', 'Could not generate the Evidence Package PDF.');
         }
@@ -150,8 +232,14 @@ export default function ReportScreen() {
     }
   };
 
+  /** Button press: always confirm first (in a modal). */
+  const requestSend = () => {
+    if (!pdfUri || !token || sending || sent || sendLock) return;
+    setConfirmOpen(true);
+  };
+
   const sendToAdmin = async () => {
-    if (!pdfUri || !token || sending || sent) return;
+    if (!pdfUri || !token || sending || sent || sendLock) return;
 
     try {
       setSending(true);
@@ -161,18 +249,22 @@ export default function ReportScreen() {
         pdfUri,
       });
       setSent(true);
+      setSendLock('pending');
       // Resent after a rejection: the admin's old reason no longer applies.
       update({ jobStatus: result.job?.status || data.jobStatus, review: null });
-      Alert.alert(
-        'Sent to Admin',
-        result.alreadySubmitted
-          ? 'Package updated on the server for admin review.'
-          : `Evidence package submitted${
-              result.photosUploaded != null ? ` (${result.photosUploaded} photos)` : ''
-            }. Admin can review it under Reports.`
+      setConfirmOpen(false);
+      setSuccessMessage(
+        `Your evidence package${
+          result.photosUploaded != null ? ` with ${result.photosUploaded} photos` : ''
+        } is with the admin for review. You can send again only if the admin rejects it or requests changes.`
       );
     } catch (error) {
+      setConfirmOpen(false);
       const message = error instanceof Error ? error.message : 'Please try again.';
+      // The server refuses a second send while the admin still has the package.
+      if (/already (sent|approved)/i.test(message)) {
+        setSendLock(/approved/i.test(message) ? 'approved' : 'pending');
+      }
       Alert.alert('Send failed', message);
     } finally {
       setSending(false);
@@ -189,6 +281,16 @@ export default function ReportScreen() {
   };
 
   const actionsDisabled = !pdfUri || busy || sending || creating;
+  const sendDisabled = !pdfUri || !token || sending || sent || creating || Boolean(sendLock);
+  const sendLabel = sent
+    ? 'Sent to Admin ✓'
+    : sendLock === 'approved'
+      ? 'Approved by admin'
+      : sendLock === 'pending'
+        ? 'Sent · awaiting admin review'
+        : resend
+          ? 'Resend to Admin'
+          : 'Send to Admin';
 
   return (
     <Screen edges={['bottom']} style={styles.screen}>
@@ -220,6 +322,12 @@ export default function ReportScreen() {
                 ? `${includedPhotos} photos included · draft applied`
                 : 'Preparing PDF...'}
             </Text>
+            {pdfWarning ? (
+              <View style={styles.warning} accessibilityRole="alert">
+                <Text style={styles.warningTitle}>Incomplete PDF</Text>
+                <Text style={styles.warningText}>{pdfWarning}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.cardActions}>
@@ -270,21 +378,24 @@ export default function ReportScreen() {
 
         <View style={styles.bottomActions}>
           <Pressable
-            style={[
-              styles.send,
-              (!pdfUri || !token || sending || sent || creating) && styles.disabled,
-            ]}
-            disabled={!pdfUri || !token || sending || sent || creating}
-            onPress={() => void sendToAdmin()}
+            accessibilityRole="button"
+            style={[styles.send, sendDisabled && styles.disabled]}
+            disabled={sendDisabled}
+            onPress={requestSend}
           >
             {sending ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.sendText}>
-                {sent ? 'Sent to Admin ✓' : 'Send to Admin'}
-              </Text>
+              <Text style={styles.sendText}>{sendLabel}</Text>
             )}
           </Pressable>
+          {sendLock && !sent ? (
+            <Text style={styles.lockNote}>
+              {sendLock === 'approved'
+                ? 'The admin approved this package. Nothing more to send.'
+                : 'Already sent. You can send again only if the admin rejects it or requests changes.'}
+            </Text>
+          ) : null}
 
           <View style={styles.footerLinks}>
             <Pressable
@@ -308,6 +419,32 @@ export default function ReportScreen() {
           </View>
         </View>
       </View>
+
+      <ConfirmModal
+        visible={confirmOpen}
+        icon={pdfWarning ? 'alert-circle-outline' : 'document-text-outline'}
+        danger={Boolean(pdfWarning)}
+        title={pdfWarning ? 'Send an incomplete PDF?' : resend ? 'Resend to admin?' : 'Send to admin?'}
+        message={
+          pdfWarning
+            ? `${pdfWarning}\n\nOnce sent, you can't send again unless the admin rejects it or requests changes.`
+            : `The evidence package for ${data.homeownerName || data.customer || 'this job'} will go to the admin for review. You can't send again unless the admin rejects it or requests changes.`
+        }
+        cancelLabel="Cancel"
+        confirmLabel={pdfWarning ? 'Send anyway' : resend ? 'Resend' : 'Send'}
+        busy={sending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => void sendToAdmin()}
+      />
+
+      <ConfirmModal
+        visible={Boolean(successMessage)}
+        icon="checkmark-circle"
+        title="Sent to admin"
+        message={successMessage || ''}
+        confirmLabel="Done"
+        onConfirm={() => setSuccessMessage(null)}
+      />
     </Screen>
   );
 }
@@ -343,6 +480,16 @@ const styles = StyleSheet.create({
   customer: { color: '#133A42', fontSize: 20, fontWeight: '800', marginTop: 10 },
   address: { color: '#526A74', lineHeight: 20, marginTop: 4 },
   meta: { color: '#84949C', fontSize: 12, marginTop: 14 },
+  warning: {
+    backgroundColor: '#FFF4F4',
+    borderColor: '#E7B8B8',
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 10,
+  },
+  warningTitle: { color: '#9B1C1C', fontSize: 12, fontWeight: '800', marginBottom: 2 },
+  warningText: { color: '#7A1F1F', fontSize: 12, lineHeight: 17 },
   cardActions: {
     borderTopColor: '#E8EEF0',
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -376,6 +523,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   sendText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
+  lockNote: { color: '#5B6B64', fontSize: 12.5, lineHeight: 18, marginTop: 8, textAlign: 'center' },
   bottomActions: {
     marginTop: 'auto',
     paddingTop: 24,

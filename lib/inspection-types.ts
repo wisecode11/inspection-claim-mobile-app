@@ -1,5 +1,5 @@
 import type { PhotoItem, StepId, BuildNoteTextKey } from '@/lib/capture-steps';
-import type { WeatherEvidence, WeatherSummary } from '@/lib/api';
+import type { InspectorCertification, WeatherEvidence, WeatherSummary } from '@/lib/api';
 
 export type BuildNotesData = {
   fields: Record<string, string>;
@@ -20,8 +20,16 @@ export type InspectionData = {
 
   homeownerName: string;
   inspectorName: string;
+  /** Homeowner / customer contact from the job — never the inspector's. */
   phone: string;
   email: string;
+
+  /** Inspector + company details for the PDF, refreshed from the signed-in profile at PDF time. */
+  inspectorEmail?: string;
+  inspectorPhone?: string;
+  inspectorLicenseNumber?: string;
+  inspectorCertifications?: InspectorCertification[];
+  companyName?: string;
   claimNumber: string;
   policyNumber: string;
   dateOfLoss: string | null;

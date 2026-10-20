@@ -16,7 +16,8 @@
         "NSPhotoLibraryUsageDescription": "Allow CameraApp to save photos to your gallery.",
         "NSPhotoLibraryAddUsageDescription": "Allow CameraApp to save photos to your gallery.",
         "UIFileSharingEnabled": true,
-        "LSSupportsOpeningDocumentsInPlace": true
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

@@ -7,21 +7,27 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { Brand } from '@/constants/theme';
 import { clamp01, createGLRenderer, easeOutBack, GLOW } from '@/lib/three-gl';
 
-// Palette follows the 2D login hero: white tools on the teal hero, cyan glow for the beam.
+// Same colourful palette as the Profile hero tools (profile-tools-3d.tsx); cyan glow for the beam.
 const BG = Brand.accent;
-const WHITE = '#F3F7F8';
+const WHITE = '#F5F8FA';
 const PAPER = '#FFFFFF';
-const DETAIL = '#1E5059';
-const METAL = '#A9BEC4';
-const GOLD = '#E9B949';
-const GOLD_DARK = '#C49A2C';
+const DETAIL = '#26343B';
+const METAL = '#B8C6CD';
+const GOLD = '#F5B533';
+const GOLD_DARK = '#FF8A3D';
+const WOOD = '#C98A4B';
+const RED = '#F05252';
+const YELLOW = '#FFD84D';
+const GREEN = '#34D399';
+const PURPLE = '#A78BFA';
+const BLUE = '#4F8DF7';
 
 // Timeline mirrors the 2D ToolOrbit intro: clipboard pops, tools slide out one by one, then orbit.
 const INTRO_CLIPBOARD_MS = 520;
 const INTRO_TOOLS_AT_MS = 420;
 const INTRO_TOOL_STAGGER_MS = 120;
 const INTRO_TOOL_MS = 650;
-const TOOL_COUNT = 4;
+const TOOL_COUNT = 5;
 const INTRO_DONE_MS =
   INTRO_TOOLS_AT_MS + (TOOL_COUNT - 1) * INTRO_TOOL_STAGGER_MS + INTRO_TOOL_MS;
 const BEAM_FADE_MS = 500;
@@ -32,7 +38,22 @@ const RING_RADIUS = 1.12;
 const RING_TILT = 0.5; // radians the ring leans back, turning the circle into a 3D ellipse
 const TRAIL_COUNT = 9;
 
-type Materials = Record<'white' | 'paper' | 'detail' | 'metal' | 'gold' | 'goldDark' | 'glow', THREE.Material>;
+type Materials = Record<
+  | 'white'
+  | 'paper'
+  | 'detail'
+  | 'metal'
+  | 'gold'
+  | 'goldDark'
+  | 'wood'
+  | 'red'
+  | 'yellow'
+  | 'green'
+  | 'purple'
+  | 'blue'
+  | 'glow',
+  THREE.Material
+>;
 
 function box(w: number, h: number, d: number, material: THREE.Material) {
   return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
@@ -49,9 +70,15 @@ function createMaterials(): Materials {
     white: standard(WHITE, 0.45),
     paper: standard(PAPER, 0.7),
     detail: standard(DETAIL, 0.6),
-    metal: standard(METAL, 0.3, { metalness: 0.6 }),
+    metal: standard(METAL, 0.3, { metalness: 0.55 }),
     gold: standard(GOLD, 0.4),
-    goldDark: standard(GOLD_DARK, 0.5),
+    goldDark: standard(GOLD_DARK, 0.42),
+    wood: standard(WOOD, 0.42),
+    red: standard(RED, 0.42),
+    yellow: standard(YELLOW, 0.42),
+    green: standard(GREEN, 0.42),
+    purple: standard(PURPLE, 0.42),
+    blue: standard(BLUE, 0.42),
     glow: standard(GLOW, 0.3, { emissive: GLOW, emissiveIntensity: 0.85 }),
   };
 }
@@ -59,7 +86,7 @@ function createMaterials(): Materials {
 /** Centre piece — mirrors lucide's ClipboardCheck. */
 function buildClipboard(m: Materials) {
   const g = new THREE.Group();
-  g.add(rounded(0.78, 1.0, 0.07, 0.06, m.white));
+  g.add(rounded(0.78, 1.0, 0.07, 0.06, m.wood));
 
   const paper = rounded(0.62, 0.8, 0.02, 0.02, m.paper);
   paper.position.set(0, -0.05, 0.045);
@@ -79,7 +106,7 @@ function buildClipboard(m: Materials) {
     [0.42, (50 * Math.PI) / 180],
   ];
   for (const [length, angle] of legs) {
-    const leg = rounded(length, 0.065, 0.035, 0.03, m.glow);
+    const leg = rounded(length, 0.065, 0.035, 0.03, m.green);
     leg.position.set(
       vertex.x + (Math.cos(angle) * length) / 2,
       vertex.y + (Math.sin(angle) * length) / 2,
@@ -95,7 +122,7 @@ function buildClipboard(m: Materials) {
 
 function buildRuler(m: Materials) {
   const g = new THREE.Group();
-  g.add(rounded(1.0, 0.22, 0.05, 0.03, m.white));
+  g.add(rounded(1.0, 0.22, 0.05, 0.03, m.yellow));
   for (let i = 0; i < 9; i += 1) {
     const height = i % 2 === 0 ? 0.1 : 0.06;
     const tick = box(0.02, height, 0.012, m.detail);
@@ -113,7 +140,7 @@ function buildStopwatch(m: Materials) {
   body.rotation.x = Math.PI / 2;
   g.add(body);
 
-  const bezel = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.035, 10, 40), m.white);
+  const bezel = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.035, 10, 40), m.purple);
   bezel.position.z = 0.03;
   g.add(bezel);
 
@@ -128,7 +155,7 @@ function buildStopwatch(m: Materials) {
   minute.rotation.z = -0.5;
   g.add(minute);
 
-  const second = box(0.015, 0.18, 0.012, m.glow);
+  const second = box(0.015, 0.18, 0.012, m.red);
   second.geometry.translate(0, 0.09, 0);
   second.position.z = 0.07;
   second.rotation.z = 1.9;
@@ -173,9 +200,9 @@ function buildHardHat(m: Materials) {
 
 function buildHammer(m: Materials) {
   const g = new THREE.Group();
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.042, 0.72, 16), m.white);
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.042, 0.72, 16), m.wood);
   g.add(handle);
-  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.26, 16), m.detail);
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.26, 16), m.red);
   grip.position.y = -0.22;
   g.add(grip);
 
@@ -198,8 +225,30 @@ function buildHammer(m: Materials) {
   return g;
 }
 
+/** Same camera as the Profile hero: blue body, dark lens with a glowing glass, red shutter. */
+function buildCamera(m: Materials) {
+  const g = new THREE.Group();
+  g.add(rounded(0.9, 0.6, 0.3, 0.1, m.blue));
+  const hump = rounded(0.3, 0.14, 0.24, 0.05, m.blue);
+  hump.position.set(-0.15, 0.34, 0);
+  g.add(hump);
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.16, 28), m.detail);
+  lens.rotation.x = Math.PI / 2;
+  lens.position.z = 0.2;
+  g.add(lens);
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.04, 28), m.glow);
+  glass.rotation.x = Math.PI / 2;
+  glass.position.z = 0.28;
+  g.add(glass);
+  const shutter = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.06, 20), m.red);
+  shutter.position.set(0.28, 0.32, 0);
+  g.add(shutter);
+  g.scale.setScalar(0.5);
+  return g;
+}
+
 /**
- * Login hero in 3D: the inspection clipboard with ruler, stopwatch, hard hat and hammer
+ * Login hero in 3D: the inspection clipboard with ruler, stopwatch, hard hat, camera and hammer
  * orbiting on a tilted ring and a glowing beam — the 2D ToolOrbit, rendered with three.js.
  *
  * `start` holds the intro until the splash is gone; `animate` false (reduce motion) shows
@@ -251,11 +300,11 @@ export function HeroTools3D({
       const clipboard = buildClipboard(m);
       scene.add(clipboard);
 
-      // Same slots as the 2D design: ruler top, stopwatch right, hard hat bottom, hammer left.
-      const tools = [buildRuler(m), buildStopwatch(m), buildHardHat(m), buildHammer(m)].map(
+      // Evenly spaced clockwise from the top: ruler, stopwatch, hard hat, camera, hammer.
+      const tools = [buildRuler(m), buildStopwatch(m), buildHardHat(m), buildCamera(m), buildHammer(m)].map(
         (object, index) => {
           scene.add(object);
-          return { object, baseAngle: Math.PI / 2 - index * (Math.PI / 2), baseScale: object.scale.x };
+          return { object, baseAngle: Math.PI / 2 - index * ((Math.PI * 2) / TOOL_COUNT), baseScale: object.scale.x };
         },
       );
 

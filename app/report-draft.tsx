@@ -251,6 +251,24 @@ export default function ReportDraftScreen() {
           />
         </View>
 
+        <Text style={styles.section}>Inspector’s findings</Text>
+        <Text style={styles.hintOutside}>
+          Your conclusions, in your own words. Printed in the PDF as “Inspector’s Findings and
+          Conclusions” right after the summary. Leave blank to omit.
+        </Text>
+        <View style={ui.card}>
+          <TextInput
+            style={[ui.input, styles.areaTall]}
+            multiline
+            textAlignVertical="top"
+            value={data.reportNarrative}
+            onChangeText={(reportNarrative) => update({ reportNarrative })}
+            placeholder="e.g. Hail impacts consistent with the date of loss were found on the front and right slopes…"
+            placeholderTextColor={Brand.soft}
+            accessibilityLabel="Inspector’s findings and conclusions"
+          />
+        </View>
+
         <Text style={styles.section}>Build notes</Text>
         <View style={ui.card}>
           <Text style={[styles.label, styles.labelFirst]}>Roof construction</Text>
@@ -520,6 +538,10 @@ const styles = StyleSheet.create({
   },
   areaShort: {
     minHeight: 72,
+    paddingTop: 12,
+  },
+  areaTall: {
+    minHeight: 140,
     paddingTop: 12,
   },
   photoList: {

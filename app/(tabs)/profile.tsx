@@ -4,21 +4,11 @@ import { Image } from 'expo-image';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import {
   Camera,
-  ClipboardCheck,
-  ClipboardList,
-  CloudHail,
   CloudLightning,
-  Compass,
-  Drill,
-  Flashlight,
   Hammer,
   HardHat,
-  PencilRuler,
   Ruler,
-  Scan,
-  Search,
-  Thermometer,
-  Wind,
+  ClipboardList,
   Wrench,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -35,20 +25,17 @@ import {
   Text,
   View,
 } from 'react-native';
-import Animated, {
-  Easing,
-  cancelAnimation,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Line } from 'react-native-svg';
+
+import { requireOptionalNativeModule } from 'expo';
 
 import { ConnectionDot } from '@/components/connection-dot';
+import type {
+  ProfileToolModel,
+  ProfileToolPlacement,
+  ProfileTools3D as ProfileTools3DComponent,
+} from '@/components/profile-tools-3d';
 import { SafeTopGuard } from '@/components/safe-top-guard';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
@@ -58,153 +45,190 @@ import { getStableDeviceId } from '@/lib/device-id';
 import { loadPushPrefs, savePushPrefs } from '@/lib/push-prefs';
 import { syncPushRegistration } from '@/lib/push-notifications';
 
+// expo-gl throws at import time when its native module is missing (e.g. an older
+// dev build), so only load the 3D tools when the module exists.
+const GL_AVAILABLE = Boolean(requireOptionalNativeModule('ExponentGLObjectManager'));
+/* eslint-disable @typescript-eslint/no-require-imports */
+const ProfileTools3D: typeof ProfileTools3DComponent | null = GL_AVAILABLE
+  ? require('@/components/profile-tools-3d').ProfileTools3D
+  : null;
+/* eslint-enable @typescript-eslint/no-require-imports */
+
 const HeroPrimary = Brand.accent;
-const HeroTextMuted = '#8FAEB8';
 const BodyBg = Brand.sheetBg;
-const PulseBlue = 'rgba(181,203,211,0.5)';
-const StatusBlue = "#32CD32";
+const StatusBlue = '#32CD32';
 const StatusText = '#8FAEB8';
-const GlowBlue = '181,203,211';
 
-const AVATAR_SIZE = 88;
-const RING_SIZE = 104;
-const ARC_SIZE = AVATAR_SIZE - 16;
-const PULSE_MS = 3200;
-const ROTATE_MS = 6000;
-const DRIFT_MS = 9000;
+const AVATAR_SIZE = 80;
+const HERO_HEIGHT = 268;
+/** Avatar centre, in % of the hero. The 3D network and the overlay share this point. */
+const NETWORK_HUB = { x: 50, y: 48 };
 
-type FloatingTool = {
+type NetworkNode = {
   Icon: LucideIcon;
-  /** Which side of the avatar. Both sides use the same `spread`, so the layout mirrors. */
-  side: 'left' | 'right';
-  /** Horizontal distance of the tool's centre from the hero's centre line, in % of its width. */
-  spread: number;
-  /** Vertical position of the tool's centre, in % of the hero's height. */
-  top: number;
+  model: ProfileToolModel;
+  /** Centre of the node, in % of the hero's width / height. */
+  x: number;
+  y: number;
   size: number;
-  opacity: number;
-  /** Drift direction and distance (px) for one half-cycle. */
-  dx: number;
-  dy: number;
-  /** Max tilt (deg) reached at the end of the drift. */
-  tilt: number;
-  /** One half-cycle; the full back-and-forth takes twice this. */
-  durationMs: number;
+  color: string;
+  /** Other node indexes this one also connects to, besides the line back to the avatar. */
+  links: number[];
+  /** Extra space between this tool and its node, in points. */
+  toolGap?: number;
+  /** Shift the map pin horizontally, in points. Negative moves it left. */
+  pinShiftX?: number;
 };
 
-/** Global speed knob: < 1 is faster, > 1 is slower. Scales every tool's durationMs. */
-const FLOATING_DURATION_SCALE = 0.4;
-/** Global visibility knob: multiplies every tool's opacity. */
-const FLOATING_OPACITY_SCALE = 3.2;
-
-// Seven tools per side, mirrored by `spread`, all inside the oval that starts below the top bar
-// and wraps the avatar + name. Kept clear: the avatar's pulse rings and the name/status block.
-// Sizes vary so the two sides read as balanced, not copy-pasted.
-const FLOATING_TOOLS: FloatingTool[] = [
-  // Top band, just under the title bar (mirrored pairs + one centred under "Profile")
-  { Icon: Wind, side: 'left', spread: 41, top: 26, size: 22, opacity: 0.13, dx: 6, dy: 5, tilt: 8, durationMs: 14500 },
-  { Icon: Search, side: 'left', spread: 28, top: 18, size: 18, opacity: 0.15, dx: -5, dy: 5, tilt: -10, durationMs: 12000 },
-  { Icon: CloudLightning, side: 'left', spread: 0, top: 17, size: 20, opacity: 0.13, dx: 6, dy: 4, tilt: 6, durationMs: 15000 },
-  { Icon: Hammer, side: 'right', spread: 28, top: 18, size: 22, opacity: 0.13, dx: 5, dy: 5, tilt: 10, durationMs: 13500 },
-  { Icon: Ruler, side: 'right', spread: 41, top: 26, size: 18, opacity: 0.15, dx: -6, dy: 5, tilt: -8, durationMs: 12500 },
-  // Left side
-  { Icon: Ruler, side: 'left', spread: 18, top: 27, size: 18, opacity: 0.15, dx: 6, dy: 5, tilt: 10, durationMs: 12500 },
-  { Icon: Hammer, side: 'left', spread: 33, top: 38, size: 30, opacity: 0.13, dx: -6, dy: 6, tilt: -12, durationMs: 14000 },
-  { Icon: CloudHail, side: 'left', spread: 43, top: 50, size: 32, opacity: 0.11, dx: 6, dy: -6, tilt: 8, durationMs: 16000 },
-  { Icon: Drill, side: 'left', spread: 29, top: 52, size: 16, opacity: 0.16, dx: -5, dy: 6, tilt: -8, durationMs: 11500 },
-  { Icon: Wrench, side: 'left', spread: 40, top: 66, size: 20, opacity: 0.14, dx: 6, dy: -5, tilt: 12, durationMs: 13500 },
-  { Icon: Camera, side: 'left', spread: 25, top: 72, size: 18, opacity: 0.14, dx: -5, dy: -5, tilt: -10, durationMs: 13000 },
-  { Icon: PencilRuler, side: 'left', spread: 37, top: 80, size: 28, opacity: 0.12, dx: 5, dy: -5, tilt: 10, durationMs: 15000 },
-  // Right side
-  { Icon: Scan, side: 'right', spread: 18, top: 27, size: 18, opacity: 0.15, dx: -6, dy: 5, tilt: -10, durationMs: 11000 },
-  { Icon: ClipboardList, side: 'right', spread: 33, top: 36, size: 28, opacity: 0.12, dx: 6, dy: 6, tilt: 12, durationMs: 15500 },
-  { Icon: HardHat, side: 'right', spread: 43, top: 50, size: 28, opacity: 0.14, dx: -6, dy: -6, tilt: -8, durationMs: 13000 },
-  { Icon: Compass, side: 'right', spread: 29, top: 52, size: 18, opacity: 0.15, dx: 5, dy: 6, tilt: 10, durationMs: 12000 },
-  { Icon: Flashlight, side: 'right', spread: 40, top: 66, size: 30, opacity: 0.11, dx: -6, dy: -5, tilt: 14, durationMs: 16500 },
-  { Icon: ClipboardCheck, side: 'right', spread: 25, top: 72, size: 18, opacity: 0.14, dx: 5, dy: -5, tilt: -12, durationMs: 14500 },
-  { Icon: Thermometer, side: 'right', spread: 37, top: 80, size: 20, opacity: 0.15, dx: -5, dy: -5, tilt: 8, durationMs: 12000 },
+// Laid out like the geometric-network reference: a few solid tools around the avatar,
+// clear of the name and the "Profile" title.
+// Positions are an even ring around the avatar, matching the reference:
+// lightning under the title, side tools level with the photo, lower tools
+// beside the name rather than in the empty band above the card.
+const NETWORK_NODES: NetworkNode[] = [
+  { Icon: CloudLightning, model: 'lightning', x: 50, y: 30, size: 20, color: '#FFD84D', links: [1, 2], toolGap: 18, pinShiftX: -36 },
+  { Icon: Hammer, model: 'hammer', x: 16, y: 32, size: 30, color: '#E7B56A', links: [3] },
+  { Icon: Ruler, model: 'ruler', x: 84, y: 26, size: 28, color: '#FFD84D', links: [4] },
+  { Icon: Wrench, model: 'wrench', x: 10, y: 48, size: 28, color: '#6AA4FF', links: [] },
+  { Icon: ClipboardList, model: 'clipboard', x: 90, y: 42, size: 30, color: '#E7B56A', links: [6] },
+  { Icon: Camera, model: 'camera', x: 22, y: 66, size: 26, color: '#6AA4FF', links: [] },
+  { Icon: HardHat, model: 'hardHat', x: 80, y: 64, size: 28, color: '#F5B533', links: [] },
 ];
 
-/** Centre point of a tool inside the hero, in % of width / height. */
-function toolPosition(tool: FloatingTool) {
-  const x = tool.side === 'right' ? 50 + tool.spread : 50 - tool.spread;
-  return {
-    left: `${x}%` as const,
-    top: `${tool.top}%` as const,
-  };
-}
+const TOOL_PLACEMENTS: ProfileToolPlacement[] = NETWORK_NODES.map((node) => ({
+  model: node.model,
+  x: node.x,
+  y: node.y,
+  size: node.size,
+  links: node.links,
+  toolGap: node.toolGap,
+  pinShiftX: node.pinShiftX,
+  lockFacing: node.model === 'lightning',
+}));
 
-function FloatingToolIcon({
-  tool,
-  index,
-  active,
-}: {
-  tool: FloatingTool;
-  index: number;
-  active: boolean;
-}) {
-  const progress = useSharedValue(0);
-  const { Icon, size, opacity, dx, dy, tilt, durationMs } = tool;
-  const { left, top } = toolPosition(tool);
+function GeometricNetworkFallback({ width, height }: { width: number; height: number }) {
+  const px = (percent: number) => (percent / 100) * width;
+  const py = (percent: number) => (percent / 100) * height;
+  const hubX = px(NETWORK_HUB.x);
+  const hubY = py(NETWORK_HUB.y);
+  const vanishY = height * 0.16;
+  const bottom = height;
+  const rows = 8;
+  const cols = 12;
+  const horizontals: { x1: number; x2: number; y: number }[] = [];
+  const verticals: { x1: number; y1: number; x2: number; y2: number }[] = [];
 
-  useEffect(() => {
-    if (!active) {
-      cancelAnimation(progress);
-      return;
-    }
+  for (let row = 0; row <= rows; row++) {
+    const t = Math.pow(row / rows, 1.65);
+    const y = vanishY + (bottom - vanishY) * t;
+    const dist = (y - vanishY) / (bottom - vanishY);
+    const half = width * (0.05 + dist * 0.62);
+    horizontals.push({ x1: width / 2 - half, x2: width / 2 + half, y });
+  }
+  for (let col = 0; col <= cols; col++) {
+    const u = col / cols;
+    verticals.push({
+      x1: width * (0.45 + u * 0.1),
+      y1: vanishY,
+      x2: width * (0.04 + u * 0.92),
+      y2: bottom,
+    });
+  }
 
-    // Ping-pong 0 → 1 → 0 forever; staggered start so icons never move in sync.
-    progress.value = withDelay(
-      (index * 700) % 4000,
-      withRepeat(
-        withTiming(1, {
-          duration: durationMs * FLOATING_DURATION_SCALE,
-          easing: Easing.inOut(Easing.sin),
-        }),
-        -1,
-        true,
-      ),
-    );
-
-    return () => {
-      cancelAnimation(progress);
-    };
-  }, [active, durationMs, index, progress]);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: dx * progress.value },
-      { translateY: dy * progress.value },
-      { rotate: `${tilt * progress.value}deg` },
-    ],
-  }));
+  const points = NETWORK_NODES.map((node) => ({ x: px(node.x), y: py(node.y) }));
 
   return (
-    <Animated.View
-      style={[
-        styles.floatingTool,
-        {
-          left,
-          top,
-          // Position is the tool's centre, so pull it back by half its size.
-          marginLeft: -size / 2,
-          marginTop: -size / 2,
-          opacity: Math.min(1, opacity * FLOATING_OPACITY_SCALE),
-        },
-        style,
-      ]}
-    >
-      <Icon color="#FFFFFF" size={size} strokeWidth={1.6} />
-    </Animated.View>
-  );
-}
-
-function FloatingTools({ active }: { active: boolean }) {
-  return (
-    <View importantForAccessibility="no-hide-descendants" pointerEvents="none" style={styles.floatingTools}>
-      {FLOATING_TOOLS.map((tool, index) => (
-        <FloatingToolIcon active={active} index={index} key={index} tool={tool} />
-      ))}
+    <View importantForAccessibility="no-hide-descendants" pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Svg height={height} width={width}>
+        {horizontals.map((line, index) => (
+          <Line
+            key={`h-${index}`}
+            stroke="rgba(103,215,226,0.34)"
+            strokeWidth={1}
+            x1={line.x1}
+            x2={line.x2}
+            y1={line.y}
+            y2={line.y}
+          />
+        ))}
+        {verticals.map((line, index) => (
+          <Line
+            key={`v-${index}`}
+            stroke="rgba(103,215,226,0.34)"
+            strokeWidth={1}
+            x1={line.x1}
+            x2={line.x2}
+            y1={line.y1}
+            y2={line.y2}
+          />
+        ))}
+        {points.map((point, index) => {
+          const pinX = point.x + (NETWORK_NODES[index].pinShiftX ?? 0);
+          const dx = pinX - hubX;
+          const dy = point.y - hubY;
+          const len = Math.hypot(dx, dy) || 1;
+          const gap = AVATAR_SIZE / 2 + 10;
+          return (
+            <Line
+              key={`hub-${index}`}
+              stroke="rgba(142,234,242,0.8)"
+              strokeWidth={1.4}
+              x1={hubX + (dx / len) * gap}
+              x2={pinX - (dx / len) * 8}
+              y1={hubY + (dy / len) * gap}
+              y2={point.y - (dy / len) * 8}
+            />
+          );
+        })}
+        {NETWORK_NODES.flatMap((node, index) =>
+          node.links
+            .filter((other) => other > index && points[other])
+            .map((other) => (
+              <Line
+                key={`link-${index}-${other}`}
+                stroke="rgba(142,234,242,0.55)"
+                strokeWidth={1.2}
+                x1={points[index].x}
+                x2={points[other].x}
+                y1={points[index].y}
+                y2={points[other].y}
+              />
+            )),
+        )}
+        {points.map((point, index) => (
+          <Circle
+            key={`pin-${index}`}
+            cx={point.x + (NETWORK_NODES[index].pinShiftX ?? 0)}
+            cy={point.y}
+            fill="#2AD4C8"
+            r={5.5}
+          />
+        ))}
+        {points.map((point, index) => (
+          <Circle
+            key={`pin-hole-${index}`}
+            cx={point.x + (NETWORK_NODES[index].pinShiftX ?? 0)}
+            cy={point.y - 1}
+            fill="#F4FFFE"
+            r={2}
+          />
+        ))}
+      </Svg>
+      {NETWORK_NODES.map((node, index) => {
+        const point = points[index];
+        const Icon = node.Icon;
+        const dx = point.x - hubX;
+        const dy = point.y - hubY;
+        const len = Math.hypot(dx, dy) || 1;
+        const gap = node.toolGap ?? 12;
+        const iconX = point.x + (dx / len) * gap - node.size / 2;
+        const iconY = point.y + (dy / len) * gap - node.size / 2;
+        return (
+          <View key={node.model} style={{ left: iconX, position: 'absolute', top: iconY }}>
+            <Icon color={node.color} size={node.size} strokeWidth={1.7} />
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -294,150 +318,6 @@ function PreferenceRow({
   );
 }
 
-function PulseRing({ delayMs, active }: { delayMs: number; active: boolean }) {
-  const scale = useSharedValue(0.85);
-  const opacity = useSharedValue(0.55);
-
-  useEffect(() => {
-    if (!active) {
-      cancelAnimation(scale);
-      cancelAnimation(opacity);
-      scale.value = 0.85;
-      opacity.value = 0;
-      return;
-    }
-
-    scale.value = 0.85;
-    opacity.value = 0.55;
-    const ease = Easing.out(Easing.cubic);
-    scale.value = withDelay(
-      delayMs,
-      withRepeat(withTiming(1.45, { duration: PULSE_MS, easing: ease }), -1, false),
-    );
-    opacity.value = withDelay(
-      delayMs,
-      withRepeat(withTiming(0, { duration: PULSE_MS, easing: ease }), -1, false),
-    );
-
-    return () => {
-      cancelAnimation(scale);
-      cancelAnimation(opacity);
-    };
-  }, [active, delayMs, opacity, scale]);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ scale: scale.value }],
-  }));
-
-  return (
-    <Animated.View
-      importantForAccessibility="no"
-      pointerEvents="none"
-      style={[styles.pulseRing, style]}
-    />
-  );
-}
-
-function RotatingArc({ active }: { active: boolean }) {
-  const rotation = useSharedValue(0);
-  const stroke = 1.5;
-  const radius = (ARC_SIZE - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const arcLength = circumference * 0.45;
-
-  useEffect(() => {
-    if (!active) {
-      cancelAnimation(rotation);
-      rotation.value = 0;
-      return;
-    }
-
-    rotation.value = 0;
-    rotation.value = withRepeat(
-      withTiming(360, { duration: ROTATE_MS, easing: Easing.linear }),
-      -1,
-      false,
-    );
-
-    return () => {
-      cancelAnimation(rotation);
-    };
-  }, [active, rotation]);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
-
-  return (
-    <Animated.View
-      importantForAccessibility="no"
-      pointerEvents="none"
-      style={[styles.rotatingArc, style]}
-    >
-      <Svg height={ARC_SIZE} width={ARC_SIZE}>
-        <Circle
-          cx={ARC_SIZE / 2}
-          cy={ARC_SIZE / 2}
-          fill="none"
-          r={radius}
-          stroke={`rgba(${GlowBlue},0.35)`}
-          strokeDasharray={`${arcLength} ${circumference - arcLength}`}
-          strokeLinecap="round"
-          strokeWidth={stroke}
-        />
-      </Svg>
-    </Animated.View>
-  );
-}
-
-function AmbientGlow({ active }: { active: boolean }) {
-  const progress = useSharedValue(0);
-
-  useEffect(() => {
-    if (!active) {
-      cancelAnimation(progress);
-      progress.value = 0;
-      return;
-    }
-
-    const ease = Easing.inOut(Easing.ease);
-    progress.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: DRIFT_MS / 2, easing: ease }),
-        withTiming(0, { duration: DRIFT_MS / 2, easing: ease }),
-      ),
-      -1,
-      false,
-    );
-
-    return () => {
-      cancelAnimation(progress);
-    };
-  }, [active, progress]);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: progress.value * 14 },
-      { translateY: progress.value * 10 },
-    ],
-  }));
-
-  return (
-    <Animated.View
-      importantForAccessibility="no"
-      pointerEvents="none"
-      style={[styles.ambientGlow, style]}
-    >
-      <View style={styles.ambientGlowCore}>
-        <View style={styles.ambientGlowOuter} />
-        <View style={styles.ambientGlowMid} />
-        <View style={styles.ambientGlowInner} />
-      </View>
-    </Animated.View>
-  );
-}
-
 /** Full-screen view of the profile photo. Tap anywhere outside the buttons to close. */
 function ProfilePhotoViewer({
   uri,
@@ -520,6 +400,9 @@ export default function ProfileScreen() {
   const [darkMode, setDarkMode] = useState(false);
   const [screenFocused, setScreenFocused] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [heroSize, setHeroSize] = useState<{ width: number; height: number } | null>(null);
+  const [tools3dFailed, setTools3dFailed] = useState(false);
+  const show3dTools = Boolean(ProfileTools3D) && !tools3dFailed;
 
   useEffect(() => {
     void loadPushPrefs().then((prefs) => setPushNotifications(prefs.enabled));
@@ -602,42 +485,37 @@ export default function ProfileScreen() {
       <StatusBar style="light" />
       <SafeTopGuard color={HeroPrimary} />
 
-      <View style={[styles.heroSection, { paddingTop: 8 }]}>
-        <AmbientGlow active={motionActive} />
-        <FloatingTools active={motionActive} />
+      <View
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          setHeroSize((current) =>
+            current && current.width === width && current.height === height ? current : { width, height },
+          );
+        }}
+        style={styles.heroSection}
+      >
+        {show3dTools && ProfileTools3D ? (
+          heroSize ? (
+            <ProfileTools3D
+              key={`${heroSize.width}x${heroSize.height}-h${NETWORK_HUB.y}-pin${NETWORK_NODES[0].pinShiftX}-beam-blue`}
+              active={screenFocused}
+              background={HeroPrimary}
+              height={heroSize.height}
+              hub={NETWORK_HUB}
+              hubClearance={AVATAR_SIZE / 2 + 10}
+              onError={() => setTools3dFailed(true)}
+              reduceMotion={reduceMotion}
+              tools={TOOL_PLACEMENTS}
+              width={heroSize.width}
+            />
+          ) : null
+        ) : heroSize ? (
+          <GeometricNetworkFallback height={heroSize.height} width={heroSize.width} />
+        ) : null}
 
-        <View style={styles.topBar}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Edit profile"
-            hitSlop={8}
-            onPress={openEditProfile}
-            style={({ pressed }) => [styles.topBarBtn, pressed && styles.topBarBtnPressed]}
-          >
-            <Icon color="#FFFFFF" name="pencil" size={18} />
-          </Pressable>
-          <Text style={styles.topBarTitle}>Profile</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Log out"
-            hitSlop={8}
-            onPress={() => setLogoutOpen(true)}
-            style={({ pressed }) => [
-              styles.topBarBtn,
-              styles.topBarBtnDanger,
-              pressed && styles.topBarBtnPressed,
-            ]}
-          >
-            <Icon color="#FFFFFF" name="log-out-outline" size={18} />
-          </Pressable>
-        </View>
+        <Text style={styles.heroTitle}>Profile</Text>
 
-        <View style={styles.avatarBlock}>
-          <PulseRing active={motionActive} delayMs={0} />
-          <PulseRing active={motionActive} delayMs={1100} />
-          <PulseRing active={motionActive} delayMs={2200} />
-          <RotatingArc active={motionActive} />
-
+        <View style={styles.avatarAnchor}>
           <Pressable
             accessibilityHint={avatarUri ? 'Opens your profile photo' : 'Opens edit profile'}
             accessibilityLabel={`${fullName}, ${roleLabel}`}
@@ -664,12 +542,14 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        <Text style={styles.heroName}>{fullName}</Text>
-        <View style={styles.statusLine}>
-          <ConnectionDot active={motionActive} onlineColor={StatusBlue} />
-          <Text style={[styles.statusText, !online && styles.statusTextOffline]}>
-            {online ? 'Inspector · on duty' : 'Inspector · offline'}
-          </Text>
+        <View style={styles.identity}>
+          <Text style={styles.heroName}>{fullName}</Text>
+          <View style={styles.statusLine}>
+            <ConnectionDot active={motionActive} onlineColor={StatusBlue} />
+            <Text style={[styles.statusText, !online && styles.statusTextOffline]}>
+              {online ? 'Inspector · on duty' : 'Inspector · offline'}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -837,130 +717,51 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   heroSection: {
-    alignItems: 'center',
     backgroundColor: HeroPrimary,
-    flexShrink: 0,
+    height: HERO_HEIGHT,
     overflow: 'hidden',
-    paddingBottom: 28,
-    paddingHorizontal: 20,
   },
-  ambientGlow: {
-    borderRadius: 95,
-    bottom: -48,
-    height: 190,
-    left: -56,
-    opacity: 0.45,
-    overflow: 'hidden',
-    position: 'absolute',
-    width: 190,
-  },
-  ambientGlowCore: {
-    alignItems: 'center',
-    borderRadius: 95,
-    height: 190,
-    justifyContent: 'center',
-    overflow: 'hidden',
-    width: 190,
-  },
-  ambientGlowOuter: {
-    backgroundColor: `rgba(${GlowBlue},0.03)`,
-    borderRadius: 95,
-    height: 190,
-    overflow: 'hidden',
-    position: 'absolute',
-    width: 190,
-  },
-  ambientGlowMid: {
-    backgroundColor: `rgba(${GlowBlue},0.055)`,
-    borderRadius: 66,
-    height: 132,
-    overflow: 'hidden',
-    position: 'absolute',
-    width: 132,
-  },
-  ambientGlowInner: {
-    backgroundColor: `rgba(${GlowBlue},0.1)`,
-    borderRadius: 38,
-    height: 76,
-    overflow: 'hidden',
-    position: 'absolute',
-    width: 76,
-  },
-  floatingTools: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  floatingTool: {
-    position: 'absolute',
-  },
-  topBar: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 22,
-    width: '100%',
-    zIndex: 20,
-  },
-  topBarBtn: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderColor: 'rgba(255,255,255,0.35)',
-    borderRadius: 20,
-    borderWidth: 1,
-    elevation: 4,
-    height: 40,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    width: 40,
-  },
-  topBarBtnDanger: {
-    backgroundColor: 'rgba(220, 38, 38, 0.55)',
-    borderColor: 'rgba(255,255,255,0.4)',
-  },
-  topBarBtnPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.96 }],
-  },
-  topBarTitle: {
+  heroTitle: {
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700',
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    textAlign: 'center',
+    top: 2,
+    zIndex: 5,
   },
-  avatarBlock: {
+  avatarAnchor: {
+    height: AVATAR_SIZE,
+    left: '50%',
+    marginLeft: -AVATAR_SIZE / 2,
+    position: 'absolute',
+    top: (NETWORK_HUB.y / 100) * HERO_HEIGHT - AVATAR_SIZE / 2,
+    width: AVATAR_SIZE,
+    zIndex: 5,
+  },
+  identity: {
     alignItems: 'center',
-    height: RING_SIZE * 1.45,
-    justifyContent: 'center',
-    marginBottom: 0,
-    width: RING_SIZE * 1.45,
-    zIndex: 2,
-  },
-  pulseRing: {
-    borderColor: PulseBlue,
-    borderRadius: RING_SIZE / 2,
-    borderWidth: 1.5,
-    height: RING_SIZE,
+    left: 0,
     position: 'absolute',
-    width: RING_SIZE,
-  },
-  rotatingArc: {
-    height: ARC_SIZE,
-    position: 'absolute',
-    width: ARC_SIZE,
+    right: 0,
+    top: (NETWORK_HUB.y / 100) * HERO_HEIGHT + AVATAR_SIZE / 2 + 8,
+    zIndex: 5,
   },
   avatarRing: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderColor: '#FFFFFF',
     borderRadius: AVATAR_SIZE / 2,
-    borderWidth: 2,
+    borderWidth: 3,
+    elevation: 6,
     height: AVATAR_SIZE,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
     width: AVATAR_SIZE,
-    zIndex: 3,
   },
   avatar: {
     alignItems: 'center',
@@ -985,29 +786,26 @@ const styles = StyleSheet.create({
     borderColor: HeroPrimary,
     borderRadius: 13,
     borderWidth: 2,
+    bottom: -2,
     height: 26,
     justifyContent: 'center',
-    left: (RING_SIZE * 1.45) / 2 + (AVATAR_SIZE / 2) * Math.SQRT1_2 - 13,
     position: 'absolute',
-    top: (RING_SIZE * 1.45) / 2 + (AVATAR_SIZE / 2) * Math.SQRT1_2 - 13,
+    right: -2,
     width: 26,
-    zIndex: 4,
+    zIndex: 6,
   },
   heroName: {
     color: '#FFFFFF',
     fontSize: 24,
     fontWeight: '700',
     letterSpacing: -0.3,
-    marginTop: 16,
     textAlign: 'center',
-    zIndex: 2,
   },
   statusLine: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 8,
-    marginTop: 7,
-    zIndex: 2,
+    marginTop: 6,
   },
   statusText: {
     color: StatusText,
@@ -1022,7 +820,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     flex: 1,
-    marginTop: -14,
+    marginTop: -22,
     overflow: 'hidden',
     paddingHorizontal: 20,
     paddingTop: 24,

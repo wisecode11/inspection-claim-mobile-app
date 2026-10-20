@@ -21,7 +21,17 @@ export type AuthUser = {
     phone?: string;
     avatarUrl?: string;
     licenseNumber?: string;
+    /** Set by the company admin; printed in the PDF declaration when current. */
+    certifications?: InspectorCertification[];
   };
+};
+
+export type InspectorCertification = {
+  name: string;
+  issuer?: string;
+  number?: string;
+  issuedAt?: string | null;
+  expiresAt?: string | null;
 };
 
 
@@ -485,6 +495,18 @@ function userFromPayload(payload: { data?: { user?: AuthUser } }, fallback: stri
     throw new Error(fallback);
   }
   return payload.data.user;
+}
+
+/** Current user + company from the server (fresh profile, license and certifications). */
+export async function fetchMySession(
+  token: string,
+): Promise<{ user: AuthUser; company: AuthCompany | null }> {
+  const payload = await requestJson<{ data?: { user?: AuthUser; company?: AuthCompany | null } }>(
+    '/api/auth/me',
+    { method: 'GET', token },
+  );
+  if (!payload?.data?.user) throw new Error('Could not load your profile');
+  return { user: payload.data.user, company: payload.data.company ?? null };
 }
 
 export async function updateMyProfile(token: string, body: ProfileUpdate): Promise<AuthUser> {

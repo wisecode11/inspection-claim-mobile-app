@@ -15,7 +15,15 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
       }
+    },
+    "preview-device": {
+      "extends": "production",
+      "distribution": "store",
+      "autoIncrement": true
     },
     "production": {
       "autoIncrement": true
