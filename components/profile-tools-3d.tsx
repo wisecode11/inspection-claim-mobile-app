@@ -25,16 +25,19 @@ export type ProfileToolModel =
 
 export type ProfileToolPlacement = {
   model: ProfileToolModel;
-  /** Centre of the tool in % of the hero's width / height. */
+  /** Node centre in % of the hero's width / height. The pin sits here; the tool floats just outside it. */
   x: number;
   y: number;
   /** Rough on-screen size in layout points. */
   size: number;
-  /** Drift (points) and tilt (deg) reached at the end of one half-cycle. */
-  dx: number;
-  dy: number;
-  tilt: number;
-  durationMs: number;
+  /** Other node indexes this one also connects to, besides the line back to the avatar. */
+  links?: number[];
+  /** How far, in points, to push the tool out from its node. Defaults to a small gap. */
+  toolGap?: number;
+  /** Shift the map pin horizontally, in points. Negative moves it left of the tool. */
+  pinShiftX?: number;
+  /** Keep the tool facing the camera so it stays on its centre line. */
+  lockFacing?: boolean;
 };
 
 const PALETTE = {
@@ -56,7 +59,7 @@ const PALETTE = {
 type Materials = Record<keyof typeof PALETTE | 'glow' | 'glass', THREE.MeshStandardMaterial>;
 
 /** Global visibility knob for the 3D tools: 1 is fully opaque. */
-const TOOL_OPACITY = 0.65;
+const TOOL_OPACITY = 1;
 
 function createMaterials(): Materials {
   const entries = Object.entries(PALETTE).map(([key, color]) => [
@@ -363,18 +366,110 @@ const BUILDERS: Record<ProfileToolModel, (m: Materials) => THREE.Object3D> = {
   },
 };
 
-/** Model size relative to the 2D icon box, so the 3D tools read at about the same weight. */
-const SIZE_SCALE = 1.35;
+/** Model size relative to the placement box. */
+const SIZE_SCALE = 1.05;
 const INTRO_STAGGER_MS = 45;
 const INTRO_MS = 600;
+const GRID_COLOR = '#67D7E2';
+const LINK_COLOR = '#8EEAF2';
+const PIN_SIZE = 15;
+const BEAM_SPEED = 42;
+const BEAM_BEADS = 7;
+const BEAM_GAP = 6;
+const BEAM_HEAD = '#8EBEFF';
+const BEAM_TAIL = '#2F6FE4';
+
+function percentToWorld(pctX: number, pctY: number, width: number, height: number) {
+  return new THREE.Vector3(((pctX - 50) / 100) * width, ((50 - pctY) / 100) * height, 0);
+}
+
+/** Screen-space perspective grid: lines converge toward a horizon above the avatar. */
+function addPerspectiveGrid(scene: THREE.Scene, width: number, height: number) {
+  const material = new THREE.LineBasicMaterial({
+    color: GRID_COLOR,
+    transparent: true,
+    opacity: 0.34,
+  });
+  const positions: number[] = [];
+  const vanishY = height * 0.46;
+  const bottom = -height * 0.5;
+  const rows = 10;
+  const cols = 16;
+  const yAt = (t: number) => vanishY + (bottom - vanishY) * Math.pow(t, 1.65);
+  const halfWidthAt = (y: number) => {
+    const dist = (vanishY - y) / (vanishY - bottom);
+    return width * (0.05 + dist * 0.78);
+  };
+
+  for (let row = 0; row <= rows; row++) {
+    const y = yAt(row / rows);
+    const half = halfWidthAt(y);
+    positions.push(-half, y, 0, half, y, 0);
+  }
+  for (let col = 0; col <= cols; col++) {
+    const u = col / cols;
+    const xTop = -width * 0.05 + u * width * 0.1;
+    const xBottom = -width * 0.83 + u * width * 1.66;
+    positions.push(xTop, vanishY, 0, xBottom, bottom, 0);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const lines = new THREE.LineSegments(geometry, material);
+  lines.position.z = -30;
+  scene.add(lines);
+}
+
+function createMapPin() {
+  const group = new THREE.Group();
+  const body = new THREE.MeshStandardMaterial({
+    color: '#2AD4C8',
+    emissive: '#0C7C78',
+    emissiveIntensity: 0.65,
+    roughness: 0.32,
+    metalness: 0.05,
+  });
+  const holeMat = new THREE.MeshStandardMaterial({
+    color: '#F4FFFE',
+    emissive: '#D9FFFB',
+    emissiveIntensity: 0.4,
+    roughness: 0.4,
+  });
+  // Cone points down and its tip sits on the local origin, so the line meets the pin.
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.46, 16), body);
+  tip.rotation.x = Math.PI;
+  tip.position.y = 0.23;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 18, 14), body);
+  head.position.y = 0.5;
+  const hole = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), holeMat);
+  hole.position.set(0, 0.54, 0.16);
+  group.add(head, tip, hole);
+  group.scale.setScalar(PIN_SIZE);
+  return group;
+}
+
+function addNetworkLine(scene: THREE.Scene, from: THREE.Vector3, to: THREE.Vector3) {
+  const geometry = new THREE.BufferGeometry().setFromPoints([from, to]);
+  const material = new THREE.LineBasicMaterial({
+    color: LINK_COLOR,
+    transparent: true,
+    opacity: 0.8,
+  });
+  const line = new THREE.Line(geometry, material);
+  line.position.z = 2;
+  scene.add(line);
+}
 
 /**
- * Colourful 3D tools floating in the Profile hero (replaces the flat white icons).
+ * Geometric network behind the Profile hero: perspective grid, pins, and
+ * connecting lines, with a colourful 3D tool floating at each node.
  * Fills its parent; `width`/`height` are the parent's layout size in points.
  * Pauses while `active` is false and draws one still frame under reduce motion.
  */
 export function ProfileTools3D({
   tools,
+  hub,
+  hubClearance,
   width,
   height,
   background,
@@ -383,6 +478,9 @@ export function ProfileTools3D({
   onError,
 }: {
   tools: ProfileToolPlacement[];
+  /** Avatar centre, in % of the hero's width / height. Lines stop short of it. */
+  hub: { x: number; y: number };
+  hubClearance: number;
   width: number;
   height: number;
   background: string;
@@ -407,30 +505,125 @@ export function ProfileTools3D({
       const renderer = createGLRenderer(gl, background);
       // Work in layout points: the z = 0 plane maps 1:1 to the hero's layout.
       const scene = new THREE.Scene();
-      const camera = createPointsCamera(width, height, 30);
+      const camera = createPointsCamera(width, height, 34);
 
-      scene.add(new THREE.HemisphereLight('#FFFFFF', '#2E6B76', 1.5));
-      const key = new THREE.DirectionalLight('#FFFFFF', 2.3);
-      key.position.set(width * 0.3, height, 600);
+      scene.add(new THREE.HemisphereLight('#E7FBFF', '#1A4E58', 1.35));
+      const key = new THREE.DirectionalLight('#FFFFFF', 2.4);
+      key.position.set(width * 0.25, height, 700);
       scene.add(key);
-      const rim = new THREE.DirectionalLight(GLOW, 0.9);
-      rim.position.set(-width, height * 0.3, -300);
+      const rim = new THREE.DirectionalLight(GLOW, 0.7);
+      rim.position.set(-width, height * 0.2, -200);
       scene.add(rim);
+
+      addPerspectiveGrid(scene, width, height);
+
+      const hubPos = percentToWorld(hub.x, hub.y, width, height);
+      const nodePoints = tools.map((tool) => percentToWorld(tool.x, tool.y, width, height));
+      const pinPoints = nodePoints.map((point, index) => {
+        const shifted = point.clone();
+        shifted.x += tools[index].pinShiftX ?? 0;
+        return shifted;
+      });
+
+      const trimLine = (from: THREE.Vector3, to: THREE.Vector3, startGap: number, endGap: number) => {
+        const dir = to.clone().sub(from);
+        const len = dir.length() || 1;
+        dir.multiplyScalar(1 / len);
+        return [from.clone().addScaledVector(dir, startGap), to.clone().addScaledVector(dir, -endGap)] as const;
+      };
+
+      const route: { from: THREE.Vector3; to: THREE.Vector3; length: number }[] = [];
+      const track = (from: THREE.Vector3, to: THREE.Vector3) => {
+        const a = from.clone();
+        const b = to.clone();
+        a.z = 6;
+        b.z = 6;
+        route.push({ from: a, to: b, length: a.distanceTo(b) });
+      };
+
+      pinPoints.forEach((point, index) => {
+        const [start, end] = trimLine(hubPos, point, hubClearance, 2);
+        addNetworkLine(scene, start, end);
+        track(start, end);
+        for (const other of tools[index].links ?? []) {
+          const target = pinPoints[other];
+          if (!target || other <= index) continue;
+          const [a, b] = trimLine(point, target, 4, 4);
+          addNetworkLine(scene, a, b);
+          track(end, a);
+          track(a, b);
+          track(b, end);
+        }
+        track(end, start);
+      });
+
+      const routeTotal = route.reduce((sum, segment) => sum + segment.length, 0);
+      const placeOnRoute = (distance: number, target: THREE.Vector3) => {
+        if (routeTotal <= 0) return;
+        let remaining = ((distance % routeTotal) + routeTotal) % routeTotal;
+        for (const segment of route) {
+          if (remaining <= segment.length || segment === route[route.length - 1]) {
+            const t = segment.length === 0 ? 0 : Math.min(1, remaining / segment.length);
+            target.lerpVectors(segment.from, segment.to, t);
+            return;
+          }
+          remaining -= segment.length;
+        }
+      };
+
+      const beadGeometry = new THREE.SphereGeometry(1, 14, 10);
+      const beam = Array.from({ length: BEAM_BEADS }, (_, index) => {
+        const fade = 1 - index / BEAM_BEADS;
+        const material = new THREE.MeshBasicMaterial({
+          color: index === 0 ? BEAM_HEAD : BEAM_TAIL,
+          transparent: true,
+          opacity: index === 0 ? 0.95 : 0.5 * fade * fade,
+          depthWrite: false,
+        });
+        const mesh = new THREE.Mesh(beadGeometry, material);
+        mesh.scale.setScalar(index === 0 ? 2.6 : 2 * fade + 0.55);
+        mesh.renderOrder = 2;
+        scene.add(mesh);
+        return mesh;
+      });
+      const haloMaterial = new THREE.MeshBasicMaterial({
+        color: BEAM_TAIL,
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false,
+      });
+      const halo = new THREE.Mesh(beadGeometry, haloMaterial);
+      halo.scale.setScalar(7);
+      halo.renderOrder = 1;
+      scene.add(halo);
+      const beamPoint = new THREE.Vector3();
 
       const m = createMaterials();
       const items = tools.map((tool, index) => {
+        const point = nodePoints[index];
+        const outward = point.clone().sub(hubPos);
+        if (outward.lengthSq() < 1) outward.set(0, 1, 0);
+        outward.normalize();
+
+        const pin = createMapPin();
+        pin.position.copy(pinPoints[index]);
+        pin.position.z = 8;
+        scene.add(pin);
+
         const model = BUILDERS[tool.model](m);
         const holder = new THREE.Group();
         holder.add(model);
-        holder.position.set(((tool.x - 50) / 100) * width, ((50 - tool.y) / 100) * height, 0);
+        holder.position.copy(point).addScaledVector(outward, tool.toolGap ?? 12);
+        holder.position.z = 26;
         scene.add(holder);
         return {
           holder,
-          tool,
+          pin,
           index,
           scale: tool.size * SIZE_SCALE,
           home: holder.position.clone(),
-          phase: (index * 0.7) % 4,
+          pinHome: pin.position.clone(),
+          lockFacing: Boolean(tool.lockFacing),
         };
       });
 
@@ -441,19 +634,25 @@ export function ProfileTools3D({
 
       const draw = (seconds: number, still: boolean) => {
         const ms = still ? Number.POSITIVE_INFINITY : seconds * 1000;
-        for (const { holder, tool, index, scale, home, phase } of items) {
+        for (const { holder, pin, index, scale, home, pinHome, lockFacing } of items) {
           const pop = clamp01((ms - index * INTRO_STAGGER_MS) / INTRO_MS);
-          holder.scale.setScalar(Math.max(0.0001, scale * (pop === 0 ? 0 : easeOutBack(pop, 1.6))));
+          const popped = pop === 0 ? 0 : easeOutBack(pop, 1.6);
+          holder.scale.setScalar(Math.max(0.0001, scale * popped));
+          pin.scale.setScalar(Math.max(0.0001, PIN_SIZE * popped));
 
-          // Same ping-pong drift as the 2D icons, plus a slow turn that shows the depth.
-          const half = (tool.durationMs * 0.4) / 1000;
-          const t = still ? 0.5 : (Math.max(0, seconds - phase) % (half * 2)) / half;
-          const p = 0.5 - 0.5 * Math.cos(Math.PI * (t > 1 ? 2 - t : t));
-          holder.position.set(home.x + tool.dx * p, home.y - tool.dy * p, 0);
-          holder.rotation.z = -THREE.MathUtils.degToRad(tool.tilt * p); // RN rotates clockwise
-          holder.rotation.y = Math.sin(seconds * 0.8 + index * 1.3) * 0.55;
-          holder.rotation.x = 0.15 + Math.sin(seconds * 0.6 + index) * 0.12;
+          const bob = still ? 0 : Math.sin(seconds * 0.7 + index * 1.1) * 3;
+          holder.position.set(home.x, home.y + bob, home.z);
+          pin.position.set(pinHome.x, pinHome.y + bob * 0.35, pinHome.z);
+          holder.rotation.y = lockFacing ? 0 : still ? 0.25 : Math.sin(seconds * 0.45 + index) * 0.4;
+          holder.rotation.x = 0.18;
         }
+
+        const head = still ? routeTotal * 0.18 : seconds * BEAM_SPEED;
+        beam.forEach((mesh, index) => {
+          placeOnRoute(head - index * BEAM_GAP, mesh.position);
+        });
+        placeOnRoute(head, beamPoint);
+        halo.position.copy(beamPoint);
         renderer.render(scene, camera);
         gl.endFrameEXP();
       };
